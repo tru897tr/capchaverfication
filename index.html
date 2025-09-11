@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Test reCAPTCHA v2</title>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+    }
+    .container {
+      text-align: center;
+      padding: 30px;
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    #message {
+      margin-top: 20px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #4CAF50;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Xác minh reCAPTCHA</h2>
+    <div class="g-recaptcha" 
+         data-sitekey="YOUR_SITE_KEY" 
+         data-callback="onCaptchaSuccess">
+    </div>
+    <div id="message">Hello</div>
+  </div>
+
+  <script>
+    function onCaptchaSuccess() {
+      document.getElementById("message").style.display = "block";
+    }
+  </script>
+</body>
+</html>
