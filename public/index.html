@@ -91,7 +91,7 @@
       try {
         await grecaptcha.ready(async () => {
           const token = await grecaptcha.execute('6LeBicYrAAAAALan_sIyTsrETredO2T88qoNmrII', { action: 'submit' });
-          const response = await fetch('/verify', {
+          const response = await fetch('/captcha/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token })
