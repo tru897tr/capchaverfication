@@ -3,14 +3,25 @@ const axios = require('axios');
 const cors = require('cors');
 const app = express();
 
-const SECRET_KEY = '6LeBicYrAAAAAFABk9WjdpLt_LdAWCw27hKvad4A';
+const SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '6LeBicYrAAAAAFABk9WjdpLt_LdAWCw27hKvad4A';
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Phục vụ file tĩnh như index.html
+app.use(express.static('public')); // Phục vụ index.html
 
-app.post('/verify', async (req, res) => {
+// Redirect từ / đến /captcha
+app.get('/', (req, res) => {
+  res.redirect('/captcha');
+});
+
+// Phục vụ index.html tại /captcha
+app.get('/captcha', (req, res) => {
+  res.sendFile('index.html', { root: 'public' });
+});
+
+// Xử lý xác minh reCAPTCHA
+app.post('/captcha/verify', async (req, res) => {
   const { token } = req.body;
 
   if (!token) {
@@ -19,14 +30,10 @@ app.post('/verify', async (req, res) => {
 
   try {
     const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-      params: {
-        secret: SECRET_KEY,
-        response: token
-      }
+      params: { secret: SECRET_KEY, response: token }
     });
 
     const { success, score, 'error-codes': errorCodes } = response.data;
-
     res.json({
       success,
       score,
