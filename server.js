@@ -1,49 +1,54 @@
 const express = require('express');
 const axios = require('axios');
-const cors = require('cors');
-const app = express();
+require('dotenv').config();
 
-const SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '6LeBicYrAAAAAFABk9WjdpLt_LdAWCw27hKvad4A';
+const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Phục vụ index.html
+app.use(express.static('public'));
 
-// Redirect từ / đến /captcha
-app.get('/', (req, res) => {
-  res.redirect('/captcha');
+// Route để xử lý xác minh CAPTCHA
+app.post('/verify', async (req, res) => {
+    const { 'g-recaptcha-response': recaptchaResponse } = req.body;
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+
+    if (!recaptchaResponse) {
+        return res.status(400).json({
+            success: false,
+            message: 'No CAPTCHA response provided',
+            debug: 'Server Error: Missing g-recaptcha-response in request body'
+        });
+    }
+
+    try {
+        const response = await axios.post(
+            `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaResponse}`
+        );
+
+        if (response.data.success) {
+            res.json({
+                success: true,
+                message: 'CAPTCHA verified successfully!',
+                debug: `Server: Verification successful. Score: ${response.data.score || 'N/A'}`
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                message: 'CAPTCHA verification failed',
+                debug: `Server: Verification failed. Errors: ${JSON.stringify(response.data['error-codes'] || [])}`
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Server error during CAPTCHA verification',
+            debug: `Server Error: ${error.message}`
+        });
+    }
 });
 
-// Phục vụ index.html tại /captcha
-app.get('/captcha', (req, res) => {
-  res.sendFile('index.html', { root: 'public' });
-});
-
-// Xử lý xác minh reCAPTCHA
-app.post('/captcha/verify', async (req, res) => {
-  const { token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ success: false, error: 'No token provided' });
-  }
-
-  try {
-    const response = await axios.post('https://www.google.com/recaptcha/api/siteverify', null, {
-      params: { secret: SECRET_KEY, response: token }
-    });
-
-    const { success, score, 'error-codes': errorCodes } = response.data;
-    res.json({
-      success,
-      score,
-      error: errorCodes ? errorCodes.join(', ') : null
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
+// Khởi động server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
