@@ -3,26 +3,87 @@ const axios = require('axios');
 const helmet = require('helmet');
 const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
+const session = require('express-session');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware bảo mật
-app.use(helmet()); // Thêm các tiêu đề HTTP bảo mật
+// Mã hóa URL chuyển hướng
+const redirectUrl = 'https://www.example.com/success'; // Thay bằng URL thực tế
+const encryptionKey = crypto.randomBytes(32).toString('hex'); // Tạo khóa ngẫu nhiên
+const iv = crypto.randomBytes(16); // Initialization vector
+
+// Mã hóa URL
+function encryptUrl(url) {
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+    let encrypted = cipher.update(url, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+// Giải mã URL
+function decryptUrl(encrypted) {
+    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+// Middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", 'https://www.google.com', 'https://www.gstatic.com'],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            frameSrc: ['https://www.google.com'],
+            connectSrc: ["'self'", 'https://www.google.com']
+        }
+    }
+}));
 app.use(express.json());
 app.use(express.static('public'));
-app.use(csrf()); // CSRF protection
 
-// Rate limiting để ngăn brute force
+// Session middleware
+app.use(session({
+    secret: crypto.randomBytes(32).toString('hex'),
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: true, httpOnly: true, maxAge: 15 * 60 * 1000 } // 15 phút
+}));
+
+// CSRF protection
+app.use(csrf());
+
+// Rate limiting
 const verifyLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 phút
-    max: 10, // Giới hạn 10 request mỗi IP
+    max: 5, // Giới hạn 5 request mỗi IP
     message: {
         success: false,
         message: 'Too many attempts, please try again later.',
         debug: 'Server Error: Rate limit exceeded'
     }
+});
+
+// Chỉ cho phép POST cho /verify và GET cho /csrf-token, /get-redirect
+app.use((req, res, next) => {
+    const allowedMethods = {
+        '/verify': ['POST'],
+        '/csrf-token': ['GET'],
+        '/get-redirect': ['GET']
+    };
+    const allowed = allowedMethods[req.path];
+    if (allowed && !allowed.includes(req.method)) {
+        return res.status(405).json({
+            success: false,
+            message: 'Method not allowed',
+            debug: `Server Error: ${req.method} not allowed for ${req.path}`
+        });
+    }
+    next();
 });
 
 // Route để lấy CSRF token
@@ -49,6 +110,8 @@ app.post('/verify', verifyLimiter, async (req, res) => {
         );
 
         if (response.data.success) {
+            // Lưu trạng thái xác minh vào session
+            req.session.isVerified = true;
             res.json({
                 success: true,
                 message: 'CAPTCHA verified successfully!'
@@ -67,6 +130,19 @@ app.post('/verify', verifyLimiter, async (req, res) => {
             debug: `Server Error: ${error.message}`
         });
     }
+});
+
+// Route để lấy URL chuyển hướng
+app.get('/get-redirect', (req, res) => {
+    if (!req.session.isVerified) {
+        return res.status(403).json({
+            success: false,
+            message: 'Unauthorized: CAPTCHA not verified',
+            debug: 'Server Error: No valid session found'
+        });
+    }
+    const encryptedUrl = encryptUrl(redirectUrl);
+    res.json({ redirectUrl: decryptUrl(encryptedUrl) });
 });
 
 // Khởi động server
