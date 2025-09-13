@@ -1,7 +1,3 @@
-// Giải mã URL bằng base64
-const encodedRedirectUrl = 'aHR0cHM6Ly93d3cuZXhhbXBsZS5jb20vc3VjY2Vzcw=='; // Mã hóa base64 của https://www.example.com/success
-const redirectUrl = atob(encodedRedirectUrl); // Giải mã URL
-
 // Lấy CSRF token từ server khi trang tải
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -9,7 +5,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await res.json();
         document.getElementById('csrf-token').value = data.csrfToken;
     } catch (error) {
-        console.error('Error fetching CSRF token:', error);
+        document.getElementById('result').innerText = 'Error fetching CSRF token';
+        document.getElementById('result').className = 'error';
+        document.getElementById('debug').innerText = `Client Error: ${error.message}`;
+        document.getElementById('debug').className = 'debug-panel active';
     }
 });
 
@@ -69,6 +68,24 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
 });
 
 // Redirect when "Về" button is clicked
-document.getElementById('redirect-button').addEventListener('click', () => {
-    window.location.href = redirectUrl;
+document.getElementById('redirect-button').addEventListener('click', async () => {
+    try {
+        const res = await fetch('/get-redirect', {
+            headers: { 'X-CSRF-Token': document.getElementById('csrf-token').value }
+        });
+        const data = await res.json();
+        if (data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+        } else {
+            document.getElementById('result').innerText = 'Error: Invalid session';
+            document.getElementById('result').className = 'error';
+            document.getElementById('debug').innerText = 'Client Error: No valid redirect URL';
+            document.getElementById('debug').className = 'debug-panel active';
+        }
+    } catch (error) {
+        document.getElementById('result').innerText = 'Error fetching redirect URL';
+        document.getElementById('result').className = 'error';
+        document.getElementById('debug').innerText = `Client Error: ${error.message}`;
+        document.getElementById('debug').className = 'debug-panel active';
+    }
 });
