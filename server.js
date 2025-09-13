@@ -1,15 +1,37 @@
 const express = require('express');
 const axios = require('axios');
+const helmet = require('helmet');
+const csrf = require('csurf');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware bảo mật
+app.use(helmet()); // Thêm các tiêu đề HTTP bảo mật
 app.use(express.json());
 app.use(express.static('public'));
+app.use(csrf()); // CSRF protection
+
+// Rate limiting để ngăn brute force
+const verifyLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 phút
+    max: 10, // Giới hạn 10 request mỗi IP
+    message: {
+        success: false,
+        message: 'Too many attempts, please try again later.',
+        debug: 'Server Error: Rate limit exceeded'
+    }
+});
+
+// Route để lấy CSRF token
+app.get('/csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+});
 
 // Route để xử lý xác minh CAPTCHA
-app.post('/verify', async (req, res) => {
+app.post('/verify', verifyLimiter, async (req, res) => {
     const { 'g-recaptcha-response': recaptchaResponse } = req.body;
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
