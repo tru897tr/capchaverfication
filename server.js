@@ -12,8 +12,8 @@ const PORT = process.env.PORT || 3000;
 
 // Mã hóa URL chuyển hướng
 const redirectUrl = 'https://www.example.com/success'; // Thay bằng URL thực tế
-const encryptionKey = crypto.randomBytes(32).toString('hex'); // Tạo khóa ngẫu nhiên
-const iv = crypto.randomBytes(16); // Initialization vector
+const encryptionKey = crypto.randomBytes(32).toString('hex');
+const iv = crypto.randomBytes(16);
 
 // Mã hóa URL
 function encryptUrl(url) {
@@ -25,10 +25,14 @@ function encryptUrl(url) {
 
 // Giải mã URL
 function decryptUrl(encrypted) {
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    try {
+        const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (error) {
+        throw new Error('Invalid decryption');
+    }
 }
 
 // Middleware
@@ -51,11 +55,15 @@ app.use(session({
     secret: crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: true, httpOnly: true, maxAge: 15 * 60 * 1000 } // 15 phút
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production', // HTTPS trên Render, HTTP cục bộ
+        httpOnly: true, 
+        maxAge: 15 * 60 * 1000 // 15 phút
+    }
 }));
 
 // CSRF protection
-app.use(csrf());
+app.use(csrf({ cookie: false }));
 
 // Rate limiting
 const verifyLimiter = rateLimit({
@@ -86,15 +94,43 @@ app.use((req, res, next) => {
     next();
 });
 
+// Xử lý lỗi CSRF
+app.use((err, req, res, next) => {
+    if (err.code === 'EBADCSRFTOKEN') {
+        return res.status(403).json({
+            success: false,
+            message: 'Invalid CSRF token',
+            debug: 'Server Error: CSRF token validation failed'
+        });
+    }
+    next();
+});
+
 // Route để lấy CSRF token
 app.get('/csrf-token', (req, res) => {
-    res.json({ csrfToken: req.csrfToken() });
+    try {
+        res.json({ csrfToken: req.csrfToken() });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error generating CSRF token',
+            debug: `Server Error: ${error.message}`
+        });
+    }
 });
 
 // Route để xử lý xác minh CAPTCHA
 app.post('/verify', verifyLimiter, async (req, res) => {
     const { 'g-recaptcha-response': recaptchaResponse } = req.body;
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+
+    if (!secretKey) {
+        return res.status(500).json({
+            success: false,
+            message: 'Server configuration error',
+            debug: 'Server Error: RECAPTCHA_SECRET_KEY not set'
+        });
+    }
 
     if (!recaptchaResponse) {
         return res.status(400).json({
@@ -110,7 +146,6 @@ app.post('/verify', verifyLimiter, async (req, res) => {
         );
 
         if (response.data.success) {
-            // Lưu trạng thái xác minh vào session
             req.session.isVerified = true;
             res.json({
                 success: true,
@@ -141,8 +176,16 @@ app.get('/get-redirect', (req, res) => {
             debug: 'Server Error: No valid session found'
         });
     }
-    const encryptedUrl = encryptUrl(redirectUrl);
-    res.json({ redirectUrl: decryptUrl(encryptedUrl) });
+    try {
+        const encryptedUrl = encryptUrl(redirectUrl);
+        res.json({ redirectUrl: decryptUrl(encryptedUrl) });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error generating redirect URL',
+            debug: `Server Error: ${error.message}`
+        });
+    }
 });
 
 // Khởi động server
