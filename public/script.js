@@ -1,13 +1,31 @@
+// Giải mã URL bằng base64
+const encodedRedirectUrl = 'aHR0cHM6Ly93d3cuZXhhbXBsZS5jb20vc3VjY2Vzcw=='; // Mã hóa base64 của https://www.example.com/success
+const redirectUrl = atob(encodedRedirectUrl); // Giải mã URL
+
+// Lấy CSRF token từ server khi trang tải
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('/csrf-token');
+        const data = await res.json();
+        document.getElementById('csrf-token').value = data.csrfToken;
+    } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+    }
+});
+
 document.getElementById('captcha-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const resultElement = document.getElementById('result');
     const debugElement = document.getElementById('debug');
+    const redirectButton = document.getElementById('redirect-button');
+    const csrfToken = document.getElementById('csrf-token').value;
     
     // Reset previous states
     resultElement.innerText = '';
     resultElement.className = '';
     debugElement.innerText = '';
     debugElement.className = 'debug-panel';
+    redirectButton.style.display = 'none';
 
     const response = grecaptcha.getResponse();
     if (!response) {
@@ -21,7 +39,10 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
     try {
         const res = await fetch('/verify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({ 'g-recaptcha-response': response })
         });
 
@@ -35,11 +56,9 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
             debugElement.className = 'debug-panel active';
         }
 
-        // Redirect to success page after 2 seconds if verification is successful
+        // Show redirect button on success
         if (data.success) {
-            setTimeout(() => {
-                window.location.href = 'https://www.example.com/success'; // Thay bằng URL mong muốn
-            }, 2000);
+            redirectButton.style.display = 'block';
         }
     } catch (error) {
         resultElement.innerText = 'Error verifying CAPTCHA';
@@ -47,4 +66,9 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
         debugElement.innerText = `Client Error: ${error.message}`;
         debugElement.className = 'debug-panel active';
     }
+});
+
+// Redirect when "Về" button is clicked
+document.getElementById('redirect-button').addEventListener('click', () => {
+    window.location.href = redirectUrl;
 });
