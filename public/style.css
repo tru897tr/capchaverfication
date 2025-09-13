@@ -55,7 +55,6 @@ h1 {
     display: inline-block;
 }
 
-/* Responsive reCAPTCHA */
 @media (max-width: 350px) {
     .g-recaptcha {
         transform: scale(0.85);
