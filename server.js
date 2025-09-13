@@ -16,8 +16,7 @@ app.post('/verify', async (req, res) => {
     if (!recaptchaResponse) {
         return res.status(400).json({
             success: false,
-            message: 'No CAPTCHA response provided',
-            debug: 'Server Error: Missing g-recaptcha-response in request body'
+            message: 'No CAPTCHA response provided'
         });
     }
 
@@ -29,21 +28,18 @@ app.post('/verify', async (req, res) => {
         if (response.data.success) {
             res.json({
                 success: true,
-                message: 'CAPTCHA verified successfully!',
-                debug: `Server: Verification successful. Score: ${response.data.score || 'N/A'}`
+                message: 'CAPTCHA verified successfully!'
             });
         } else {
             res.status(400).json({
                 success: false,
-                message: 'CAPTCHA verification failed',
-                debug: `Server: Verification failed. Errors: ${JSON.stringify(response.data['error-codes'] || [])}`
+                message: 'CAPTCHA verification failed'
             });
         }
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Server error during CAPTCHA verification',
-            debug: `Server Error: ${error.message}`
+            message: 'Server error during CAPTCHA verification'
         });
     }
 });
