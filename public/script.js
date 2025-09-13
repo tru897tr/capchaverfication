@@ -1,8 +1,19 @@
+// Hàm kiểm tra phản hồi JSON
+async function parseResponse(response) {
+    const text = await response.text();
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        throw new Error(`Invalid JSON response: ${text.slice(0, 50)}...`);
+    }
+}
+
 // Lấy CSRF token từ server khi trang tải
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('/csrf-token');
-        const data = await res.json();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await parseResponse(res);
         document.getElementById('csrf-token').value = data.csrfToken;
     } catch (error) {
         document.getElementById('result').innerText = 'Error fetching CSRF token';
@@ -45,7 +56,8 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
             body: JSON.stringify({ 'g-recaptcha-response': response })
         });
 
-        const data = await res.json();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await parseResponse(res);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
         
@@ -73,7 +85,8 @@ document.getElementById('redirect-button').addEventListener('click', async () =>
         const res = await fetch('/get-redirect', {
             headers: { 'X-CSRF-Token': document.getElementById('csrf-token').value }
         });
-        const data = await res.json();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await parseResponse(res);
         if (data.redirectUrl) {
             window.location.href = data.redirectUrl;
         } else {
