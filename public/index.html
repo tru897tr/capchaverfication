@@ -1,127 +1,22 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test reCAPTCHA v3</title>
-  <script src="https://www.google.com/recaptcha/api.js?render=6LeBicYrAAAAALan_sIyTsrETredO2T88qoNmrII"></script>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
-      background: #f0f2f5;
-    }
-    .container {
-      text-align: center;
-      padding: 30px;
-      background: #fff;
-      border-radius: 15px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-    #message {
-      margin-top: 20px;
-      font-size: 24px;
-      font-weight: bold;
-      color: #4CAF50;
-      display: none;
-      opacity: 0;
-      transition: opacity 0.5s ease-in-out;
-    }
-    #message.visible {
-      display: block;
-      opacity: 1;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      background: #4CAF50;
-      color: white;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    button:disabled {
-      background: #cccccc;
-      cursor: not-allowed;
-    }
-    #loading {
-      display: none;
-      margin-top: 10px;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #4CAF50;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reCAPTCHA v2 Verification</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
-  <div class="container">
-    <h2>Xác minh reCAPTCHA v3</h2>
-    <button id="verifyButton" onclick="executeCaptcha()">Xác minh</button>
-    <div id="loading"></div>
-    <div id="message">Hello! Xác minh thành công.</div>
-  </div>
-
-  <script>
-    async function executeCaptcha() {
-      const button = document.getElementById('verifyButton');
-      const loading = document.getElementById('loading');
-      const message = document.getElementById('message');
-
-      button.disabled = true;
-      loading.style.display = 'block';
-      message.style.display = 'none';
-      message.classList.remove('visible');
-
-      try {
-        await grecaptcha.ready(async () => {
-          const token = await grecaptcha.execute('6LeBicYrAAAAALan_sIyTsrETredO2T88qoNmrII', { action: 'submit' });
-          const response = await fetch('/captcha/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-          });
-          const data = await response.json();
-
-          loading.style.display = 'none';
-          button.disabled = false;
-
-          if (data.success && data.score >= 0.5) {
-            message.textContent = 'Hello! Xác minh thành công.';
-            message.style.color = '#4CAF50';
-            message.classList.add('visible');
-            message.style.display = 'block';
-          } else {
-            message.textContent = 'Xác minh thất bại: ' + (data.error || 'Score quá thấp');
-            message.style.color = 'red';
-            message.classList.add('visible');
-            message.style.display = 'block';
-          }
-        });
-      } catch (error) {
-        loading.style.display = 'none';
-        button.disabled = false;
-        message.textContent = 'Lỗi: ' + error.message;
-        message.style.color = 'red';
-        message.classList.add('visible');
-        message.style.display = 'block';
-      }
-    }
-  </script>
+    <div class="container">
+        <h1>reCAPTCHA v2 Verification</h1>
+        <form id="captcha-form">
+            <div class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF"></div>
+            <button type="submit">Verify</button>
+        </form>
+        <p id="result"></p>
+        <div id="debug" class="debug-panel"></div>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
