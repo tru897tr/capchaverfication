@@ -1,7 +1,7 @@
 {
     "name": "captcha-verification",
     "version": "1.0.0",
-    "description": "reCAPTCHA v2 verification app",
+    "description": "Capcha Verification app",
     "main": "server.js",
     "scripts": {
         "start": "node server.js"
