@@ -4,6 +4,38 @@ const getLinkButton = document.getElementById('get-link-button');
 const countdownElement = document.getElementById('countdown');
 const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
+const footer = document.getElementById('footer');
+
+// Lấy IP hiện tại
+function getClientIp() {
+    return window.location.hostname === 'localhost' ? '127.0.0.1' : '';
+}
+
+function getPublicIp() {
+    return fetch('https://api.ipify.org?format=json')
+        .then(response => response.json())
+        .then(data => data.ip)
+        .catch(error => {
+            console.error('Error fetching public IP:', error);
+            return 'Unable to fetch public IP';
+        });
+}
+
+function displayIpInfo() {
+    const privateIp = getClientIp();
+    getPublicIp().then(publicIp => {
+        const ipInfoDiv = document.createElement('div');
+        ipInfoDiv.id = 'ip-info';
+        ipInfoDiv.innerHTML = `
+            <p>Private IP: ${privateIp}</p>
+            <p>Public IP: ${publicIp}</p>
+            <p>Device: ${navigator.userAgent}</p>
+            <p>Time: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
+        `;
+        footer.appendChild(ipInfoDiv);
+        console.log('IP Info displayed:', { privateIp, publicIp });
+    });
+}
 
 function getCsrfToken() {
     fetch('/get-csrf-token', { credentials: 'include' })
@@ -34,7 +66,7 @@ function submitForm() {
         body: JSON.stringify({
             'g-recaptcha-response': response,
             'csrf-token': csrfTokenInput.value,
-            'clientIp': window.location.hostname === 'localhost' ? '127.0.0.1' : '',
+            'clientIp': getClientIp(),
             'clientDevice': navigator.userAgent
         })
     })
@@ -92,6 +124,9 @@ function startCountdown(remaining) {
 
 function checkRateLimit() {
     console.log('Checking rate limit...');
+    const currentIp = getClientIp();
+    console.log('Current IP:', currentIp);
+
     fetch('/check-rate-limit', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
@@ -104,6 +139,12 @@ function checkRateLimit() {
                 resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
                 resultElement.className = 'error';
             } else {
+                // Xóa trạng thái cũ nếu IP thay đổi hoặc không bị limit
+                const storedEndTime = localStorage.getItem('countdownEndTime');
+                if (storedEndTime) {
+                    localStorage.removeItem('countdownEndTime');
+                    console.log('Cleared old countdown due to IP change or no limit.');
+                }
                 captchaWrapper.classList.remove('hidden');
                 captchaWrapper.style.pointerEvents = 'auto';
                 grecaptcha.reset();
@@ -117,5 +158,6 @@ function checkRateLimit() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initiating setup...');
     getCsrfToken();
-    checkRateLimit(); // Kiểm tra limit ngay khi tải trang
+    checkRateLimit();
+    displayIpInfo(); // Hiển thị IP khi tải trang
 });
