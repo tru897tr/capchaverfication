@@ -15,14 +15,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             method: 'GET',
             credentials: 'include' // Gửi cookie session
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         const data = await parseResponse(res);
         document.getElementById('csrf-token').value = data.csrfToken;
+        console.log('CSRF token fetched:', data.csrfToken); // Debug
     } catch (error) {
         document.getElementById('result').innerText = 'Error fetching CSRF token';
         document.getElementById('result').className = 'error';
         document.getElementById('debug').innerText = `Client Error: ${error.message}`;
         document.getElementById('debug').className = 'debug-panel active';
+        console.error('CSRF token error:', error);
     }
 });
 
@@ -50,6 +54,7 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
     }
 
     try {
+        console.log('Sending verify request with CSRF token:', csrfToken); // Debug
         const res = await fetch('/verify', {
             method: 'POST',
             headers: { 
@@ -60,7 +65,10 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
             body: JSON.stringify({ 'g-recaptcha-response': response })
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) {
+            const data = await parseResponse(res);
+            throw new Error(`HTTP ${res.status}: ${data.message || res.statusText}`);
+        }
         const data = await parseResponse(res);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
@@ -80,17 +88,24 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
         resultElement.className = 'error';
         debugElement.innerText = `Client Error: ${error.message}`;
         debugElement.className = 'debug-panel active';
+        console.error('Verify error:', error);
     }
 });
 
 // Redirect when "Về" button is clicked
 document.getElementById('redirect-button').addEventListener('click', async () => {
     try {
+        const csrfToken = document.getElementById('csrf-token').value;
+        console.log('Sending redirect request with CSRF token:', csrfToken); // Debug
         const res = await fetch('/get-redirect', {
-            headers: { 'X-CSRF-Token': document.getElementById('csrf-token').value },
+            method: 'GET',
+            headers: { 'X-CSRF-Token': csrfToken },
             credentials: 'include' // Gửi cookie session
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) {
+            const data = await parseResponse(res);
+            throw new Error(`HTTP ${res.status}: ${data.message || res.statusText}`);
+        }
         const data = await parseResponse(res);
         if (data.redirectUrl) {
             window.location.href = data.redirectUrl;
@@ -104,6 +119,7 @@ document.getElementById('redirect-button').addEventListener('click', async () =>
         document.getElementById('result').innerText = 'Error fetching redirect URL';
         document.getElementById('result').className = 'error';
         document.getElementById('debug').innerText = `Client Error: ${error.message}`;
-        debugElement.className = 'debug-panel active';
+        document.getElementById('debug').className = 'debug-panel active';
+        console.error('Redirect error:', error);
     }
 });
