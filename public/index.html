@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Captcha Verification</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit" async defer></script>
 </head>
 <body>
     <div class="container">
         <h1>Captcha Verification</h1>
         <form id="captcha-form">
             <input type="hidden" id="csrf-token" name="csrf-token">
-            <div id="captcha-wrapper" class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF" data-callback="submitForm"></div>
+            <div id="captcha-wrapper"></div>
         </form>
         <p id="result"></p>
         <p id="countdown" style="display: none;">You will be able to verify again after <span id="timer"></span> seconds.</p>
