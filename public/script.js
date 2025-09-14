@@ -1,1 +1,149 @@
-const a=document.getElementById("ghi789"),b=document.getElementById("def456"),c=document.getElementById("stu789"),d=document.getElementById("mno123"),e=document.getElementById("pqr456"),f=document.getElementById("abc123"),g=document.getElementById("vwx123");let h=null;function i(){h=grecaptcha.render("def456",{sitekey:"6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF",callback:j})}function k(){return{userAgent:navigator.userAgent,screenResolution:`${window.screen.width}x${window.screen.height}`,language:navigator.language,platform:navigator.platform,fingerprint:btoa(`${navigator.userAgent}${window.screen.width}${window.screen.height}${navigator.language}${navigator.platform}`).slice(0,50)}}function l(){return fetch("https://api.ipify.org?format=json").then(n=>n.json()).then(o=>o.ip).catch(()=>`Unable to fetch public IP`)}function m(){l().then(p=>{const q=document.createElement("div");q.id="yzx456",q.innerHTML=`<p>Public IP: ${p}</p>`,g.appendChild(q)})}function n(o){k().then(r=>{fetch("/get-csrf-token",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({deviceInfo:r,clientIp:""})}).then(s=>s.json()).then(t=>{f.value=t.csrfToken,t.status===429&&t.remainingTime?(u(t.remainingTime),a.innerText=`Rate limited, remaining time: ${t.remainingTime} seconds`,a.className="error",b.classList.add("hidden"),b.style.pointerEvents="none"):(h&&grecaptcha.reset(h),b.classList.remove("hidden"),b.style.pointerEvents="auto",a.innerText="",a.className="")}).catch(()=>{a.innerText="Error loading page",a.className="error"})})}function j(){a.innerText="",c.style.display="none",d.style.display="none";const o=grecaptcha.getResponse(h);if(!o)return a.innerText="Please complete the CAPTCHA",void(a.className="error");k().then(r=>{const s={g-recaptcha-response:o,"csrf-token":f.value,clientIp:"",clientDevice:navigator.userAgent,deviceInfo:r};fetch("/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(s)}).then(t=>t.json()).then(u=>{a.innerText=u.message,a.className=u.success?"success":"error",u.success&&u.redirectUrl?(b.classList.add("hidden"),setTimeout(()=>{window.location.href=u.redirectUrl},2000),c.style.display="block",c.onclick=()=>window.location.href=u.redirectUrl):u.status===429&&u.remainingTime&&(grecaptcha.reset(h),b.style.pointerEvents="none",b.classList.add("hidden"),v(u.remainingTime))}).catch(()=>{a.innerText="Error verifying CAPTCHA",a.className="error"})})}function v(o){d.style.display="block",e.innerText=o;const r=setInterval(()=>{o<=0?(clearInterval(r),d.style.display="none",n()):(--o,e.innerText=o)},1000)}document.addEventListener("DOMContentLoaded",()=>{n(),m(),setTimeout(()=>{h||typeof grecaptcha!=='undefined'&&i()},2000)});
+const resultElement = document.getElementById('result');
+const captchaWrapper = document.getElementById('captcha-wrapper');
+const getLinkButton = document.getElementById('get-link-button');
+const countdownElement = document.getElementById('countdown');
+const timerElement = document.getElementById('timer');
+const csrfTokenInput = document.getElementById('csrf-token');
+const footer = document.getElementById('footer');
+
+let recaptchaWidgetId = null;
+
+function onRecaptchaLoad() {
+    recaptchaWidgetId = grecaptcha.render('captcha-wrapper', {
+        'sitekey': '6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF',
+        'callback': submitForm
+    });
+}
+
+// Lấy thông tin thiết bị chi tiết
+function getDeviceInfo() {
+    return {
+        userAgent: navigator.userAgent,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        platform: navigator.platform,
+        fingerprint: btoa(`${navigator.userAgent}${window.screen.width}${window.screen.height}${navigator.language}${navigator.platform}`).slice(0, 50)
+    };
+}
+
+// Lấy Public IP
+function getPublicIp() {
+    return fetch('https://api.ipify.org?format=json')
+        .then(response => response.json())
+        .then(data => data.ip)
+        .catch(() => 'Unable to fetch public IP');
+}
+
+function displayIpInfo() {
+    getPublicIp().then(publicIp => {
+        const ipInfoDiv = document.createElement('div');
+        ipInfoDiv.id = 'ip-info';
+        ipInfoDiv.innerHTML = `<p>Public IP: ${publicIp}</p>`;
+        footer.appendChild(ipInfoDiv);
+    });
+}
+
+function getCsrfToken() {
+    const deviceInfo = getDeviceInfo();
+    fetch('/get-csrf-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deviceInfo, clientIp: '' })
+    })
+    .then(res => res.json())
+    .then(data => {
+        csrfTokenInput.value = data.csrfToken;
+        if (data.status === 429 && data.remainingTime) {
+            startCountdown(data.remainingTime);
+            resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
+            resultElement.className = 'error';
+            captchaWrapper.classList.add('hidden');
+            captchaWrapper.style.pointerEvents = 'none';
+        } else {
+            if (recaptchaWidgetId) grecaptcha.reset(recaptchaWidgetId);
+            captchaWrapper.classList.remove('hidden');
+            captchaWrapper.style.pointerEvents = 'auto';
+            resultElement.innerText = '';
+            resultElement.className = '';
+        }
+    })
+    .catch(() => {
+        resultElement.innerText = 'Error loading page';
+        resultElement.className = 'error';
+    });
+}
+
+function submitForm() {
+    resultElement.innerText = '';
+    getLinkButton.style.display = 'none';
+    countdownElement.style.display = 'none';
+
+    const response = grecaptcha.getResponse(recaptchaWidgetId);
+    if (!response) {
+        resultElement.innerText = 'Please complete the CAPTCHA';
+        resultElement.className = 'error';
+        return;
+    }
+
+    fetch('/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            'g-recaptcha-response': response,
+            'csrf-token': csrfTokenInput.value,
+            'clientIp': '',
+            'clientDevice': navigator.userAgent,
+            'deviceInfo': getDeviceInfo()
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        resultElement.innerText = data.message;
+        resultElement.className = data.success ? 'success' : 'error';
+
+        if (data.success && data.redirectUrl) {
+            captchaWrapper.classList.add('hidden');
+            setTimeout(() => {
+                window.location.href = data.redirectUrl;
+            }, 2000);
+            getLinkButton.style.display = 'block';
+            getLinkButton.onclick = () => window.location.href = data.redirectUrl;
+        } else if (data.status === 429 && data.remainingTime) {
+            grecaptcha.reset(recaptchaWidgetId);
+            captchaWrapper.style.pointerEvents = 'none';
+            captchaWrapper.classList.add('hidden');
+            startCountdown(data.remainingTime);
+        }
+    })
+    .catch(() => {
+        resultElement.innerText = 'Error verifying CAPTCHA';
+        resultElement.className = 'error';
+    });
+}
+
+function startCountdown(remaining) {
+    countdownElement.style.display = 'block';
+    timerElement.innerText = remaining;
+    const interval = setInterval(() => {
+        if (remaining <= 0) {
+            clearInterval(interval);
+            countdownElement.style.display = 'none';
+            getCsrfToken(); // Làm mới trạng thái từ server
+        } else {
+            remaining -= 1;
+            timerElement.innerText = remaining;
+        }
+    }, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    getCsrfToken();
+    displayIpInfo();
+    // Retry if reCAPTCHA fails to load
+    setTimeout(() => {
+        if (!recaptchaWidgetId && typeof grecaptcha !== 'undefined') {
+            onRecaptchaLoad();
+        }
+    }, 2000);
+});
