@@ -5,6 +5,7 @@ const countdownElement = document.getElementById('countdown');
 const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
 const footer = document.getElementById('footer');
+const thumbnailElement = document.getElementById('thumbnail');
 
 let recaptchaWidgetId = null;
 
@@ -41,6 +42,13 @@ function displayIpInfo() {
         ipInfoDiv.innerHTML = `<p>Public IP: ${publicIp}</p>`;
         footer.appendChild(ipInfoDiv);
     });
+}
+
+// Hiển thị thumbnail
+function displayThumbnail() {
+    const thumbnailUrl = 'https://i.postimg.cc/d0gnh6pC/file-00000000f068622f96c3719d9e159475.png';
+    thumbnailElement.src = thumbnailUrl;
+    thumbnailElement.style.display = 'block';
 }
 
 function getCsrfToken() {
@@ -140,6 +148,7 @@ function startCountdown(remaining) {
 document.addEventListener('DOMContentLoaded', () => {
     getCsrfToken();
     displayIpInfo();
+    displayThumbnail(); // Hiển thị thumbnail khi trang tải
     // Retry if reCAPTCHA fails to load
     setTimeout(() => {
         if (!recaptchaWidgetId && typeof grecaptcha !== 'undefined') {
