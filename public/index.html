@@ -3,18 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CAPTCHA Verification</title>
+    <title>Captcha Verification</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
     <div class="container">
-        <h1>CAPTCHA Verification</h1>
+        <h1>Captcha Verification</h1>
         <form id="captcha-form">
-            <div class="captcha-wrapper">
-                <div class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF"></div>
-            </div>
-            <!-- No Verify button, auto-submit if needed, but we'll handle in JS -->
+            <div class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF" data-callback="submitForm"></div>
         </form>
         <p id="result"></p>
         <button id="get-link-button" style="display: none;">Get Link</button>
