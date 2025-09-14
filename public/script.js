@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await parseResponse(res);
         document.getElementById('csrf-token').value = data.csrfToken;
         console.log('CSRF token fetched:', data.csrfToken); // Debug
+        console.log('Cookies:', document.cookie); // Kiểm tra cookie session
     } catch (error) {
         document.getElementById('result').innerText = 'Error fetching CSRF token';
         document.getElementById('result').className = 'error';
@@ -55,6 +56,7 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
 
     try {
         console.log('Sending verify request with CSRF token:', csrfToken); // Debug
+        console.log('Current cookies:', document.cookie); // Kiểm tra cookie trước khi gửi
         const res = await fetch('/verify', {
             method: 'POST',
             headers: { 
@@ -97,6 +99,7 @@ document.getElementById('redirect-button').addEventListener('click', async () =>
     try {
         const csrfToken = document.getElementById('csrf-token').value;
         console.log('Sending redirect request with CSRF token:', csrfToken); // Debug
+        console.log('Current cookies:', document.cookie); // Kiểm tra cookie trước khi gửi
         const res = await fetch('/get-redirect', {
             method: 'GET',
             headers: { 'X-CSRF-Token': csrfToken },
