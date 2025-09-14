@@ -11,6 +11,7 @@
     <div class="container">
         <h1>Captcha Verification</h1>
         <form id="captcha-form">
+            <input type="hidden" id="csrf-token" name="csrf-token">
             <div id="captcha-wrapper" class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF" data-callback="submitForm"></div>
         </form>
         <p id="result"></p>
