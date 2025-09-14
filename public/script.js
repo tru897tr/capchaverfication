@@ -36,7 +36,7 @@ function submitForm() {
                 getLinkButton.style.display = 'block';
                 getLinkButton.onclick = () => window.location.href = data.redirectUrl;
             }
-        } else if (data.remainingTime) {
+        } else if (data.status === 429 && data.remainingTime) {
             // Hiển thị bộ đếm thời gian nếu bị limit
             countdownElement.style.display = 'block';
             let remaining = data.remainingTime;
@@ -49,6 +49,7 @@ function submitForm() {
                     countdownElement.style.display = 'none';
                     resultElement.innerText = 'You can verify now.';
                     resultElement.className = '';
+                    grecaptcha.reset(); // Reset CAPTCHA để verify lại
                 }
             }, 1000);
         }
