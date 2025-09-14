@@ -37,8 +37,15 @@ h1 {
     margin-bottom: 20px;
 }
 
-.g-recaptcha {
+#captcha-wrapper {
     margin-bottom: 10px;
+    transition: opacity 0.5s;
+}
+
+#captcha-wrapper.hidden {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
 }
 
 #result {
