@@ -10,30 +10,45 @@ const PORT = process.env.PORT || 10000;
 // Lưu trữ trạng thái rate limit và CSRF token
 const requestTimes = new Map(); // Map<IP, { timestamp: number, count: number }>
 const csrfTokens = new Map(); // Map<IP, CSRF token>
+const checkLimitTimes = new Map(); // Map<IP, { timestamp: number, count: number }> cho /check-rate-limit
 
 app.use(express.json());
 app.use(express.static('public'));
 
-// Middleware để lấy IP của client (ưu tiên X-Forwarded-For từ VPN/proxy)
+// Middleware để lấy IP của client (ưu tiên X-Forwarded-For từ VPN/proxy) và tạo fingerprint cơ bản
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
-    console.log(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'N/A'}`);
+    req.clientFingerprint = `${req.clientIp}-${req.clientDevice}-${req.headers['accept'] || ''}`.slice(0, 100); // Fingerprint đơn giản
+    console.log(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}, X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'N/A'}`);
     next();
 });
 
-// Tạo và gửi token CSRF
+// Tạo và gửi token CSRF với thời gian sống ngắn hơn (1 phút)
 app.get('/get-csrf-token', (req, res) => {
     const ip = req.clientIp;
     const token = crypto.randomBytes(16).toString('hex');
     csrfTokens.set(ip, token);
-    setTimeout(() => csrfTokens.delete(ip), 10 * 60 * 1000); // Hết hạn sau 10 phút
+    setTimeout(() => csrfTokens.delete(ip), 60 * 1000); // Hết hạn sau 1 phút
     console.log(`Generated CSRF token for IP ${ip}: ${token}`);
     res.json({ csrfToken: token });
 });
 
-// Kiểm tra trạng thái rate limit
-app.get('/check-rate-limit', (req, res) => {
+// Kiểm tra trạng thái rate limit với giới hạn flood
+const checkRateLimitLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 phút
+    max: 10, // Giới hạn 10 request mỗi IP trong 1 phút
+    keyGenerator: (req) => req.clientIp,
+    handler: (req, res) => {
+        console.log(`Flood limit hit for IP ${req.clientIp}`);
+        res.status(429).json({
+            status: 429,
+            message: 'Too many check requests. Please wait.'
+        });
+    }
+});
+
+app.get('/check-rate-limit', checkRateLimitLimiter, (req, res) => {
     const ip = req.clientIp;
     let ipData = requestTimes.get(ip);
     const now = Date.now();
@@ -45,7 +60,7 @@ app.get('/check-rate-limit', (req, res) => {
 
     const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
 
-    console.log(`Checking rate limit for IP ${ip}, count: ${ipData.count}, remainingTime: ${remainingTime}s`);
+    console.log(`Checking rate limit for IP ${ip}, count: ${ipData.count}, remainingTime: ${remainingTime}s, Fingerprint: ${req.clientFingerprint}`);
     if (remainingTime > 0 && ipData.count > 0) {
         res.json({
             status: 429,
@@ -60,11 +75,11 @@ app.get('/check-rate-limit', (req, res) => {
 const verifyLimiter = rateLimit({
     windowMs: 5 * 60 * 1000, // 5 phút
     max: 1, // Giới hạn 1 request
-    keyGenerator: (req) => req.clientIp, // Chỉ sử dụng IP làm key
+    keyGenerator: (req) => req.clientIp,
     handler: (req, res) => {
         const ipData = requestTimes.get(req.clientIp) || { timestamp: 0, count: 0 };
         const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
-        console.log(`Rate limit hit for IP ${req.clientIp}, remaining time: ${remainingTime}s`);
+        console.log(`Rate limit hit for IP ${req.clientIp}, remaining time: ${remainingTime}s, Fingerprint: ${req.clientFingerprint}`);
         res.status(429).json({
             success: false,
             message: 'Too many attempts. Please try again later.',
@@ -82,10 +97,17 @@ const verifyLimiter = rateLimit({
             ipData = requestTimes.get(ip);
         }
 
+        // Kiểm tra fingerprint để phát hiện thay đổi bất thường
+        if (ipData.fingerprint && ipData.fingerprint !== req.clientFingerprint) {
+            console.log(`Fingerprint mismatch for IP ${ip}, old: ${ipData.fingerprint}, new: ${req.clientFingerprint}`);
+            return false; // Chặn nếu fingerprint thay đổi
+        }
+
         ipData.count += 1;
         ipData.timestamp = now;
+        ipData.fingerprint = req.clientFingerprint; // Cập nhật fingerprint
         requestTimes.set(ip, ipData);
-        console.log(`Updated IP ${ip}, count: ${ipData.count}, timestamp: ${ipData.timestamp}`);
+        console.log(`Updated IP ${ip}, count: ${ipData.count}, timestamp: ${ipData.timestamp}, Fingerprint: ${ipData.fingerprint}`);
 
         const allow = ipData.count <= 1;
         return allow;
@@ -98,11 +120,17 @@ app.post('/verify', verifyLimiter, (req, res) => {
     const ip = req.clientIp;
     const expectedToken = csrfTokens.get(ip);
 
-    console.log(`Verifying for IP ${ip}, CSRF token: ${csrfToken}`);
+    console.log(`Verifying for IP ${ip}, CSRF token: ${csrfToken}, Fingerprint: ${req.clientFingerprint}`);
 
     if (!recaptchaResponse || !csrfToken || !expectedToken || csrfToken !== expectedToken) {
         console.log('Invalid CSRF token or missing CAPTCHA response');
         return res.json({ success: false, message: 'Invalid CSRF token or missing CAPTCHA response' });
+    }
+
+    // Kiểm tra User-Agent hợp lệ (cơ bản)
+    if (!req.clientDevice || req.clientDevice.includes('bot') || req.clientDevice.includes('spider')) {
+        console.log('Suspicious User-Agent detected:', req.clientDevice);
+        return res.json({ success: false, message: 'Suspicious request detected' });
     }
 
     try {
