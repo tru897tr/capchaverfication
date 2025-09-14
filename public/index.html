@@ -6,21 +6,21 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Xyz789</title>
+    <title>Captcha Verification</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit" async defer></script>
 </head>
 <body>
-    <div class="qwe123">
-        <h1>Klm456</h1>
-        <form id="jkl789">
-            <input type="hidden" id="abc123" name="abc123">
-            <div id="def456"></div>
+    <div class="container">
+        <h1>Captcha Verification</h1>
+        <form id="captcha-form">
+            <input type="hidden" id="csrf-token" name="csrf-token">
+            <div id="captcha-wrapper"></div>
         </form>
-        <p id="ghi789"></p>
-        <p id="mno123" style="display: none;">You will be able to verify again after <span id="pqr456"></span> seconds.</p>
-        <button id="stu789" style="display: none;">Get Link</button>
-        <footer id="vwx123">© 2025 by Nguyen Tru</footer>
+        <p id="result"></p>
+        <p id="countdown" style="display: none;">You will be able to verify again after <span id="timer"></span> seconds.</p>
+        <button id="get-link-button" style="display: none;">Get Link</button>
+        <footer id="footer">© 2025 by Nguyen Tru</footer>
     </div>
     <script src="script.js"></script>
 </body>
