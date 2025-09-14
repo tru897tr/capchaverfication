@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; frame-src https://www.google.com; connect-src 'self' https://www.google.com;">
     <title>Capcha Verification</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
@@ -12,15 +11,11 @@
     <div class="container">
         <h1>Capcha Verification</h1>
         <form id="captcha-form">
-            <input type="hidden" name="_csrf" id="csrf-token">
-            <div class="captcha-wrapper">
-                <div class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF"></div>
-            </div>
+            <div class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF"></div>
             <button type="submit">Verify</button>
         </form>
         <p id="result"></p>
         <button id="redirect-button" style="display: none;">Về</button>
-        <div id="debug" class="debug-panel"></div>
         <footer>© 2025 by Nguyen Tru</footer>
     </div>
     <script src="script.js"></script>
