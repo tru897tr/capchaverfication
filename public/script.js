@@ -1,8 +1,10 @@
+const resultElement = document.getElementById('result');
+const captchaWrapper = document.getElementById('captcha-wrapper');
+const getLinkButton = document.getElementById('get-link-button');
+const countdownElement = document.getElementById('countdown');
+const timerElement = document.getElementById('timer');
+
 function submitForm() {
-    const resultElement = document.getElementById('result');
-    const getLinkButton = document.getElementById('get-link-button');
-    const countdownElement = document.getElementById('countdown');
-    const timerElement = document.getElementById('timer');
     resultElement.innerText = '';
     getLinkButton.style.display = 'none';
     countdownElement.style.display = 'none';
@@ -25,19 +27,22 @@ function submitForm() {
         resultElement.className = data.success ? 'success' : 'error';
 
         if (data.success) {
-            // Tự động redirect sau 2 giây với link từ server
+            // Ẩn CAPTCHA sau khi verify thành công
+            captchaWrapper.classList.add('hidden');
             setTimeout(() => {
                 if (data.redirectUrl) {
                     window.location.href = data.redirectUrl;
                 }
             }, 2000);
-            // Fallback: Hiển thị nút Get Link với link từ server
             if (data.redirectUrl) {
                 getLinkButton.style.display = 'block';
                 getLinkButton.onclick = () => window.location.href = data.redirectUrl;
             }
         } else if (data.status === 429 && data.remainingTime) {
-            // Lưu thời gian kết thúc countdown vào localStorage
+            // Chặn CAPTCHA và hiển thị countdown
+            grecaptcha.reset();
+            captchaWrapper.style.pointerEvents = 'none'; // Vô hiệu hóa CAPTCHA
+            captchaWrapper.classList.add('hidden'); // Ẩn CAPTCHA khi bị chặn
             const endTime = Date.now() + data.remainingTime * 1000;
             localStorage.setItem('countdownEndTime', endTime);
             startCountdown(data.remainingTime);
@@ -51,8 +56,6 @@ function submitForm() {
 
 // Hàm bắt đầu bộ đếm thời gian
 function startCountdown(remaining) {
-    const countdownElement = document.getElementById('countdown');
-    const timerElement = document.getElementById('timer');
     countdownElement.style.display = 'block';
     timerElement.innerText = remaining;
     const interval = setInterval(() => {
@@ -64,6 +67,8 @@ function startCountdown(remaining) {
             localStorage.removeItem('countdownEndTime');
             resultElement.innerText = 'You can verify now.';
             resultElement.className = '';
+            captchaWrapper.classList.remove('hidden'); // Hiển thị lại CAPTCHA
+            captchaWrapper.style.pointerEvents = 'auto'; // Kích hoạt lại CAPTCHA
             grecaptcha.reset(); // Reset CAPTCHA để verify lại
         }
     }, 1000);
@@ -75,9 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (endTime) {
         let remaining = Math.ceil((endTime - Date.now()) / 1000);
         if (remaining > 0) {
+            captchaWrapper.classList.add('hidden'); // Ẩn CAPTCHA khi còn thời gian chặn
+            captchaWrapper.style.pointerEvents = 'none'; // Vô hiệu hóa CAPTCHA
             startCountdown(remaining);
         } else {
             localStorage.removeItem('countdownEndTime');
+            captchaWrapper.classList.remove('hidden'); // Hiển thị lại CAPTCHA
+            captchaWrapper.style.pointerEvents = 'auto'; // Kích hoạt lại CAPTCHA
             grecaptcha.reset();
         }
     }
