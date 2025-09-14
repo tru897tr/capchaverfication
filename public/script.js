@@ -34,7 +34,7 @@ function submitForm() {
         body: JSON.stringify({
             'g-recaptcha-response': response,
             'csrf-token': csrfTokenInput.value,
-            'clientIp': window.location.hostname === 'localhost' ? '127.0.0.1' : '', // Giả lập IP cục bộ
+            'clientIp': window.location.hostname === 'localhost' ? '127.0.0.1' : '',
             'clientDevice': navigator.userAgent
         })
     })
@@ -101,6 +101,14 @@ function checkRateLimit() {
                 captchaWrapper.style.pointerEvents = 'none';
                 localStorage.setItem('countdownEndTime', Date.now() + data.remainingTime * 1000);
                 startCountdown(data.remainingTime);
+                resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
+                resultElement.className = 'error';
+            } else {
+                captchaWrapper.classList.remove('hidden');
+                captchaWrapper.style.pointerEvents = 'auto';
+                grecaptcha.reset();
+                resultElement.innerText = '';
+                resultElement.className = '';
             }
         })
         .catch(error => console.error('Error checking rate limit:', error));
@@ -109,21 +117,5 @@ function checkRateLimit() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initiating setup...');
     getCsrfToken();
-    checkRateLimit();
-    const endTime = localStorage.getItem('countdownEndTime');
-    if (endTime) {
-        let remaining = Math.ceil((endTime - Date.now()) / 1000);
-        if (remaining > 0) {
-            console.log('Existing countdown detected, remaining:', remaining);
-            captchaWrapper.classList.add('hidden');
-            captchaWrapper.style.pointerEvents = 'none';
-            startCountdown(remaining);
-        } else {
-            localStorage.removeItem('countdownEndTime');
-            captchaWrapper.classList.remove('hidden');
-            captchaWrapper.style.pointerEvents = 'auto';
-            grecaptcha.reset();
-            console.log('No active countdown, CAPTCHA reset.');
-        }
-    }
+    checkRateLimit(); // Kiểm tra limit ngay khi tải trang
 });
