@@ -32,14 +32,13 @@ const checkLimitTimes = new Map();
 app.use(express.json());
 app.use(express.static('public', { etag: false, lastModified: false })); // Ngăn cache tĩnh
 
-// Middleware để redirect root hoặc endpoint không xác định đến /verify
-app.use((req, res, next) => {
-    if (req.path === '/' || !req.path.startsWith('/get-csrf-token') && !req.path.startsWith('/verify') && !req.path.startsWith('/check-rate-limit')) {
-        return res.redirect('/verify');
-    }
-    next();
+// Middleware để redirect root đến /verify
+app.get('/', (req, res) => {
+    logger.info(`Redirecting from / to /verify for IP: ${req.clientIp}`);
+    res.redirect('/verify');
 });
 
+// Middleware để xử lý thông tin client
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
@@ -220,7 +219,6 @@ app.post('/verify', verifyLimiter, (req, res) => {
             if (response.data.success) {
                 logger.info(`CAPTCHA verified for IP ${ip}`);
                 const redirectUrl = 'https://www.example.com/success';
-                // Chặn ngay sau verify thành công
                 let deviceData = requestTimes.get(fingerprint) || { timestamp: Date.now(), count: 1, ipBlocked: new Map() };
                 deviceData.ipBlocked.set(ip, true);
                 deviceData.timestamp = Date.now();
