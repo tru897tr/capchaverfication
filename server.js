@@ -2,10 +2,30 @@ const express = require('express');
 const axios = require('axios');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const winston = require('winston');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Cấu hình logging với Winston
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.File({ filename: 'error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'combined.log' })
+    ]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+    logger.add(new winston.transports.Console({
+        format: winston.format.simple()
+    }));
+}
 
 // Lưu trữ trạng thái rate limit và CSRF token
 const requestTimes = new Map(); // Map<fingerprint, { timestamp: number, count: number, ipBlocked: Map<IP, boolean> }>
@@ -13,13 +33,13 @@ const csrfTokens = new Map(); // Map<IP, CSRF token>
 const checkLimitTimes = new Map();
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('public', { etag: false, lastModified: false })); // Ngăn cache tĩnh
 
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
     req.clientFingerprint = req.body.deviceInfo ? req.body.deviceInfo.fingerprint : `${req.clientIp}-${req.clientDevice}-${req.headers['accept'] || ''}`.slice(0, 100);
-    console.log(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}, X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'N/A'}`);
+    logger.info(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}`);
     next();
 });
 
@@ -30,14 +50,12 @@ app.post('/get-csrf-token', (req, res) => {
     const now = Date.now();
     let deviceData = requestTimes.get(fingerprint) || { timestamp: now, count: 0, ipBlocked: new Map() };
 
-    console.log(`Checking device info for IP ${ip}, Fingerprint: ${fingerprint}`);
-
     // Kiểm tra nếu IP đã bị chặn từ bất kỳ fingerprint nào
     for (let [existingFingerprint, data] of requestTimes.entries()) {
         if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
             const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
             if (remainingTime > 0) {
-                console.log(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
+                logger.info(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
                 deviceData.ipBlocked.set(ip, true);
                 deviceData.timestamp = now;
                 requestTimes.set(fingerprint, deviceData);
@@ -51,7 +69,7 @@ app.post('/get-csrf-token', (req, res) => {
         const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
         if (remainingTime > 0) {
             if (deviceData.ipBlocked.get(ip) || [...deviceData.ipBlocked.values()].some(blocked => blocked)) {
-                console.log(`Fingerprint ${fingerprint} or IP ${ip} blocked, remaining time: ${remainingTime}s`);
+                logger.info(`Fingerprint ${fingerprint} or IP ${ip} blocked, remaining time: ${remainingTime}s`);
                 return res.json({ status: 429, remainingTime });
             }
         } else {
@@ -64,7 +82,7 @@ app.post('/get-csrf-token', (req, res) => {
     csrfTokens.set(ip, token);
     setTimeout(() => csrfTokens.delete(ip), 60 * 1000);
     requestTimes.set(fingerprint, deviceData);
-    console.log(`Generated CSRF token for IP ${ip}: ${token}`);
+    logger.info(`Generated CSRF token for IP ${ip}`);
     res.json({ csrfToken: token, status: 200 });
 });
 
@@ -73,7 +91,7 @@ const checkRateLimitLimiter = rateLimit({
     max: 10,
     keyGenerator: (req) => req.clientIp,
     handler: (req, res) => {
-        console.log(`Flood limit hit for IP ${req.clientIp}`);
+        logger.info(`Flood limit hit for IP ${req.clientIp}`);
         res.status(429).json({
             status: 429,
             message: 'Too many check requests. Please wait.'
@@ -95,7 +113,7 @@ app.get('/check-rate-limit', checkRateLimitLimiter, (req, res) => {
     const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
     const ipBlocked = deviceData.ipBlocked.get(ip) || false;
 
-    console.log(`Checking rate limit for IP ${ip}, Fingerprint: ${fingerprint}, count: ${deviceData.count}, remainingTime: ${remainingTime}s, IP Blocked: ${ipBlocked}`);
+    logger.info(`Checking rate limit for IP ${ip}, Fingerprint: ${fingerprint}, count: ${deviceData.count}, remainingTime: ${remainingTime}s, IP Blocked: ${ipBlocked}`);
     if (remainingTime > 0 && (deviceData.count > 0 || ipBlocked)) {
         res.json({
             status: 429,
@@ -115,7 +133,7 @@ const verifyLimiter = rateLimit({
         const ip = req.clientIp;
         const deviceData = requestTimes.get(fingerprint) || { timestamp: 0, count: 0, ipBlocked: new Map() };
         const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
-        console.log(`Rate limit hit for IP ${ip}, Fingerprint: ${fingerprint}, remaining time: ${remainingTime}s, IP Blocked: ${deviceData.ipBlocked.get(ip)}`);
+        logger.info(`Rate limit hit for IP ${ip}, Fingerprint: ${fingerprint}, remaining time: ${remainingTime}s, IP Blocked: ${deviceData.ipBlocked.get(ip)}`);
         res.status(429).json({
             success: false,
             message: 'Too many attempts. Please try again later.',
@@ -139,7 +157,7 @@ const verifyLimiter = rateLimit({
             if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
                 const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
                 if (remainingTime > 0) {
-                    console.log(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
+                    logger.info(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
                     deviceData.ipBlocked.set(ip, true);
                     deviceData.timestamp = now;
                     requestTimes.set(fingerprint, deviceData);
@@ -152,7 +170,7 @@ const verifyLimiter = rateLimit({
         if (deviceData.ipBlocked.size > 0) {
             const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
             if (remainingTime > 0 && [...deviceData.ipBlocked.values()].some(blocked => blocked)) {
-                console.log(`Fingerprint ${fingerprint} blocked, checking IP ${ip}`);
+                logger.info(`Fingerprint ${fingerprint} blocked, checking IP ${ip}`);
                 deviceData.ipBlocked.set(ip, true);
                 requestTimes.set(fingerprint, deviceData);
                 return false;
@@ -163,7 +181,7 @@ const verifyLimiter = rateLimit({
         deviceData.timestamp = now;
         if (deviceData.count > 1) {
             deviceData.ipBlocked.set(ip, true);
-            console.log(`Blocking IP ${ip} and Fingerprint ${fingerprint} after verification`);
+            logger.info(`Blocking IP ${ip} and Fingerprint ${fingerprint} after verification`);
         }
         requestTimes.set(fingerprint, deviceData);
 
@@ -178,15 +196,15 @@ app.post('/verify', verifyLimiter, (req, res) => {
     const expectedToken = csrfTokens.get(ip);
     const fingerprint = deviceInfo.fingerprint;
 
-    console.log(`Verifying for IP ${ip}, CSRF token: ${csrfToken}, Fingerprint: ${fingerprint}`);
+    logger.info(`Verifying for IP ${ip}, Fingerprint: ${fingerprint}`);
 
     if (!recaptchaResponse || !csrfToken || !expectedToken || csrfToken !== expectedToken) {
-        console.log('Invalid CSRF token or missing CAPTCHA response');
+        logger.info('Invalid CSRF token or missing CAPTCHA response');
         return res.json({ success: false, message: 'Invalid CSRF token or missing CAPTCHA response' });
     }
 
     if (!req.clientDevice || req.clientDevice.includes('bot') || req.clientDevice.includes('spider')) {
-        console.log('Suspicious User-Agent detected:', req.clientDevice);
+        logger.info('Suspicious User-Agent detected:', req.clientDevice);
         return res.json({ success: false, message: 'Suspicious request detected' });
     }
 
@@ -195,9 +213,9 @@ app.post('/verify', verifyLimiter, (req, res) => {
             `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptchaResponse}`
         ).then(response => {
             if (response.data.success) {
-                console.log(`CAPTCHA verified for IP ${ip}`);
+                logger.info(`CAPTCHA verified for IP ${ip}`);
                 const redirectUrl = 'https://www.example.com/success';
-                // Sau khi verify thành công, cập nhật chặn ngay lập tức
+                // Chặn ngay sau verify thành công
                 let deviceData = requestTimes.get(fingerprint) || { timestamp: Date.now(), count: 1, ipBlocked: new Map() };
                 deviceData.ipBlocked.set(ip, true);
                 deviceData.timestamp = Date.now();
@@ -208,19 +226,19 @@ app.post('/verify', verifyLimiter, (req, res) => {
                     redirectUrl: redirectUrl
                 });
             } else {
-                console.log(`CAPTCHA verification failed for IP ${ip}, errors: ${response.data['error-codes']}`);
+                logger.info(`CAPTCHA verification failed for IP ${ip}, errors: ${response.data['error-codes']}`);
                 res.json({ success: false, message: 'CAPTCHA verification failed' });
             }
         }).catch(error => {
-            console.error(`Error verifying CAPTCHA for IP ${ip}:`, error.message);
+            logger.error(`Error verifying CAPTCHA for IP ${ip}: ${error.message}`);
             res.json({ success: false, message: 'Error verifying CAPTCHA' });
         });
     } catch (error) {
-        console.error(`Exception verifying CAPTCHA for IP ${ip}:`, error.message);
+        logger.error(`Exception verifying CAPTCHA for IP ${ip}: ${error.message}`);
         res.json({ success: false, message: 'Error verifying CAPTCHA' });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
 });
