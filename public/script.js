@@ -8,9 +8,13 @@ const footer = document.getElementById('footer');
 
 // Lấy Public IP
 function getPublicIp() {
+    console.log('Fetching public IP...');
     return fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
-        .then(data => data.ip)
+        .then(data => {
+            console.log('Public IP fetched:', data.ip);
+            return data.ip;
+        })
         .catch(error => {
             console.error('Error fetching public IP:', error);
             return 'Unable to fetch public IP';
@@ -28,6 +32,7 @@ function displayIpInfo() {
 }
 
 function getCsrfToken() {
+    console.log('Fetching CSRF token...');
     fetch('/get-csrf-token', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
@@ -50,13 +55,14 @@ function submitForm() {
         return;
     }
 
+    console.log('Sending verification request with reCAPTCHA response:', response);
     fetch('/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             'g-recaptcha-response': response,
             'csrf-token': csrfTokenInput.value,
-            'clientIp': '', // Không cần gửi IP từ client
+            'clientIp': '',
             'clientDevice': navigator.userAgent
         })
     })
@@ -137,5 +143,5 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initiating setup...');
     getCsrfToken();
     checkRateLimit();
-    displayIpInfo(); // Hiển thị Public IP khi tải trang
+    displayIpInfo();
 });
