@@ -23,13 +23,21 @@ app.post('/verify', async (req, res) => {
         );
 
         if (response.data.success) {
-            res.json({ success: true, message: 'CAPTCHA verified successfully!' });
+            // Trả về link chuyển hướng chỉ khi CAPTCHA thành công
+            const redirectUrl = 'https://www.example.com/success'; // Thay bằng URL thực tế
+            res.json({ success: true, message: 'CAPTCHA verified successfully!', redirectUrl });
         } else {
             res.json({ success: false, message: 'CAPTCHA verification failed' });
         }
     } catch (error) {
         res.json({ success: false, message: 'Error verifying CAPTCHA' });
     }
+});
+
+// Route Get Link (ẩn, chỉ trả về khi verify thành công qua /verify)
+app.get('/get-redirect', (req, res) => {
+    // Không cho phép truy cập trực tiếp, yêu cầu verify trước
+    res.status(403).json({ success: false, message: 'Access denied. Complete CAPTCHA first.' });
 });
 
 app.listen(PORT, () => {
