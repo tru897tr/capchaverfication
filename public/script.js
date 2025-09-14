@@ -9,12 +9,14 @@ function getCsrfToken() {
     fetch('/get-csrf-token', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
+            console.log('CSRF token fetched:', data.csrfToken);
             csrfTokenInput.value = data.csrfToken;
         })
         .catch(error => console.error('Error fetching CSRF token:', error));
 }
 
 function submitForm() {
+    console.log('Submitting form...');
     resultElement.innerText = '';
     getLinkButton.style.display = 'none';
     countdownElement.style.display = 'none';
@@ -31,26 +33,27 @@ function submitForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             'g-recaptcha-response': response,
-            'csrf-token': csrfTokenInput.value
+            'csrf-token': csrfTokenInput.value,
+            'clientIp': window.location.hostname === 'localhost' ? '127.0.0.1' : '', // Giả lập IP cục bộ
+            'clientDevice': navigator.userAgent
         })
     })
     .then(res => res.json())
     .then(data => {
+        console.log('Server response:', data);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
 
-        if (data.success) {
+        if (data.success && data.redirectUrl) {
+            console.log('Verification successful, redirect URL received:', data.redirectUrl);
             captchaWrapper.classList.add('hidden');
             setTimeout(() => {
-                if (data.redirectUrl) {
-                    window.location.href = data.redirectUrl;
-                }
+                window.location.href = data.redirectUrl;
             }, 2000);
-            if (data.redirectUrl) {
-                getLinkButton.style.display = 'block';
-                getLinkButton.onclick = () => window.location.href = data.redirectUrl;
-            }
+            getLinkButton.style.display = 'block';
+            getLinkButton.onclick = () => window.location.href = data.redirectUrl;
         } else if (data.status === 429 && data.remainingTime) {
+            console.log('Rate limit hit, remaining time:', data.remainingTime);
             grecaptcha.reset();
             captchaWrapper.style.pointerEvents = 'none';
             captchaWrapper.classList.add('hidden');
@@ -60,12 +63,14 @@ function submitForm() {
         }
     })
     .catch(error => {
+        console.error('Error during verification:', error);
         resultElement.innerText = 'Error verifying CAPTCHA';
         resultElement.className = 'error';
     });
 }
 
 function startCountdown(remaining) {
+    console.log('Starting countdown with remaining:', remaining);
     countdownElement.style.display = 'block';
     timerElement.innerText = remaining;
     const interval = setInterval(() => {
@@ -80,14 +85,17 @@ function startCountdown(remaining) {
             captchaWrapper.classList.remove('hidden');
             captchaWrapper.style.pointerEvents = 'auto';
             grecaptcha.reset();
+            console.log('Countdown finished, CAPTCHA reset.');
         }
     }, 1000);
 }
 
 function checkRateLimit() {
+    console.log('Checking rate limit...');
     fetch('/check-rate-limit', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
+            console.log('Rate limit check response:', data);
             if (data.status === 429 && data.remainingTime) {
                 captchaWrapper.classList.add('hidden');
                 captchaWrapper.style.pointerEvents = 'none';
@@ -99,12 +107,14 @@ function checkRateLimit() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Page loaded, initiating setup...');
     getCsrfToken();
-    checkRateLimit(); // Kiểm tra trạng thái rate limit khi tải trang
+    checkRateLimit();
     const endTime = localStorage.getItem('countdownEndTime');
     if (endTime) {
         let remaining = Math.ceil((endTime - Date.now()) / 1000);
         if (remaining > 0) {
+            console.log('Existing countdown detected, remaining:', remaining);
             captchaWrapper.classList.add('hidden');
             captchaWrapper.style.pointerEvents = 'none';
             startCountdown(remaining);
@@ -113,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             captchaWrapper.classList.remove('hidden');
             captchaWrapper.style.pointerEvents = 'auto';
             grecaptcha.reset();
+            console.log('No active countdown, CAPTCHA reset.');
         }
     }
 });
