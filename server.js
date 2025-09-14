@@ -38,20 +38,25 @@ const verifyLimiter = rateLimit({
     skip: (req) => {
         const key = req.clientKey;
         const now = Date.now();
-        const ipData = requestTimes.get(key) || { timestamp: 0, count: 0 };
+        let ipData = requestTimes.get(key);
 
-        // Nếu đã quá 3 phút, reset counter
-        if (now - ipData.timestamp >= 3 * 60 * 1000) {
+        // Nếu không có dữ liệu hoặc đã quá 3 phút, reset
+        if (!ipData || now - ipData.timestamp >= 3 * 60 * 1000) {
             requestTimes.set(key, { timestamp: now, count: 0 });
-            return true; // Cho phép request
+            ipData = requestTimes.get(key);
         }
 
-        // Cập nhật counter và timestamp
+        // Tăng số lần request và cập nhật timestamp
         ipData.count += 1;
         ipData.timestamp = now;
         requestTimes.set(key, ipData);
 
-        return ipData.count <= 1; // Chỉ cho phép 1 request trong 3 phút
+        // Cho phép nếu count <= 1, chặn nếu count > 1
+        const allow = ipData.count <= 1;
+        if (!allow) {
+            console.log(`Blocked ${key} at ${new Date().toISOString()}`);
+        }
+        return allow;
     }
 });
 
