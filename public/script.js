@@ -1,89 +1,118 @@
-body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    margin: 0;
-    background: linear-gradient(135deg, #74ebd5, #acb6e5);
-    animation: gradient 15s ease infinite;
+const resultElement = document.getElementById('result');
+const captchaWrapper = document.getElementById('captcha-wrapper');
+const getLinkButton = document.getElementById('get-link-button');
+const countdownElement = document.getElementById('countdown');
+const timerElement = document.getElementById('timer');
+const csrfTokenInput = document.getElementById('csrf-token');
+
+function getCsrfToken() {
+    fetch('/get-csrf-token', { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            csrfTokenInput.value = data.csrfToken;
+        })
+        .catch(error => console.error('Error fetching CSRF token:', error));
 }
 
-@keyframes gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+function submitForm() {
+    resultElement.innerText = '';
+    getLinkButton.style.display = 'none';
+    countdownElement.style.display = 'none';
+
+    const response = grecaptcha.getResponse();
+    if (!response) {
+        resultElement.innerText = 'Please complete the CAPTCHA';
+        resultElement.className = 'error';
+        return;
+    }
+
+    fetch('/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            'g-recaptcha-response': response,
+            'csrf-token': csrfTokenInput.value
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        resultElement.innerText = data.message;
+        resultElement.className = data.success ? 'success' : 'error';
+
+        if (data.success) {
+            captchaWrapper.classList.add('hidden');
+            setTimeout(() => {
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                }
+            }, 2000);
+            if (data.redirectUrl) {
+                getLinkButton.style.display = 'block';
+                getLinkButton.onclick = () => window.location.href = data.redirectUrl;
+            }
+        } else if (data.status === 429 && data.remainingTime) {
+            grecaptcha.reset();
+            captchaWrapper.style.pointerEvents = 'none';
+            captchaWrapper.classList.add('hidden');
+            const endTime = Date.now() + data.remainingTime * 1000;
+            localStorage.setItem('countdownEndTime', endTime);
+            startCountdown(data.remainingTime);
+        }
+    })
+    .catch(error => {
+        resultElement.innerText = 'Error verifying CAPTCHA';
+        resultElement.className = 'error';
+    });
 }
 
-.container {
-    text-align: center;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 30px;
-    border-radius: 15px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    max-width: 400px;
-    width: 100%;
-    animation: fadeIn 1s ease-in-out;
+function startCountdown(remaining) {
+    countdownElement.style.display = 'block';
+    timerElement.innerText = remaining;
+    const interval = setInterval(() => {
+        remaining = Math.max(0, Math.ceil((localStorage.getItem('countdownEndTime') - Date.now()) / 1000));
+        timerElement.innerText = remaining;
+        if (remaining <= 0) {
+            clearInterval(interval);
+            countdownElement.style.display = 'none';
+            localStorage.removeItem('countdownEndTime');
+            resultElement.innerText = 'You can verify now.';
+            resultElement.className = '';
+            captchaWrapper.classList.remove('hidden');
+            captchaWrapper.style.pointerEvents = 'auto';
+            grecaptcha.reset();
+        }
+    }, 1000);
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+function checkRateLimit() {
+    fetch('/check-rate-limit', { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 429 && data.remainingTime) {
+                captchaWrapper.classList.add('hidden');
+                captchaWrapper.style.pointerEvents = 'none';
+                localStorage.setItem('countdownEndTime', Date.now() + data.remainingTime * 1000);
+                startCountdown(data.remainingTime);
+            }
+        })
+        .catch(error => console.error('Error checking rate limit:', error));
 }
 
-h1 {
-    color: #333;
-    margin-bottom: 20px;
-}
-
-#captcha-wrapper {
-    margin-bottom: 10px;
-    transition: opacity 0.5s;
-}
-
-#captcha-wrapper.hidden {
-    opacity: 0;
-    height: 0;
-    overflow: hidden;
-}
-
-#result {
-    margin-top: 10px;
-    color: #333;
-}
-
-#result.success {
-    color: green;
-}
-
-#result.error {
-    color: red;
-}
-
-#countdown {
-    margin-top: 10px;
-    color: orange;
-}
-
-#get-link-button {
-    padding: 10px 20px;
-    background: linear-gradient(45deg, #ff6b6b, #ff8e53);
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-    transition: transform 0.3s, box-shadow 0.3s;
-}
-
-#get-link-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-footer {
-    margin-top: 20px;
-    font-size: 12px;
-    color: #666;
-}
+document.addEventListener('DOMContentLoaded', () => {
+    getCsrfToken();
+    checkRateLimit(); // Kiểm tra trạng thái rate limit khi tải trang
+    const endTime = localStorage.getItem('countdownEndTime');
+    if (endTime) {
+        let remaining = Math.ceil((endTime - Date.now()) / 1000);
+        if (remaining > 0) {
+            captchaWrapper.classList.add('hidden');
+            captchaWrapper.style.pointerEvents = 'none';
+            startCountdown(remaining);
+        } else {
+            localStorage.removeItem('countdownEndTime');
+            captchaWrapper.classList.remove('hidden');
+            captchaWrapper.style.pointerEvents = 'auto';
+            grecaptcha.reset();
+        }
+    }
+});
