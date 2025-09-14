@@ -6,11 +6,7 @@ const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
 const footer = document.getElementById('footer');
 
-// Lấy IP hiện tại
-function getClientIp() {
-    return window.location.hostname === 'localhost' ? '127.0.0.1' : '';
-}
-
+// Lấy Public IP
 function getPublicIp() {
     return fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
@@ -22,18 +18,12 @@ function getPublicIp() {
 }
 
 function displayIpInfo() {
-    const privateIp = getClientIp();
     getPublicIp().then(publicIp => {
         const ipInfoDiv = document.createElement('div');
         ipInfoDiv.id = 'ip-info';
-        ipInfoDiv.innerHTML = `
-            <p>Private IP: ${privateIp}</p>
-            <p>Public IP: ${publicIp}</p>
-            <p>Device: ${navigator.userAgent}</p>
-            <p>Time: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
-        `;
+        ipInfoDiv.innerHTML = `<p>Public IP: ${publicIp}</p>`;
         footer.appendChild(ipInfoDiv);
-        console.log('IP Info displayed:', { privateIp, publicIp });
+        console.log('Public IP displayed:', publicIp);
     });
 }
 
@@ -66,7 +56,7 @@ function submitForm() {
         body: JSON.stringify({
             'g-recaptcha-response': response,
             'csrf-token': csrfTokenInput.value,
-            'clientIp': getClientIp(),
+            'clientIp': '', // Không cần gửi IP từ client
             'clientDevice': navigator.userAgent
         })
     })
@@ -89,8 +79,6 @@ function submitForm() {
             grecaptcha.reset();
             captchaWrapper.style.pointerEvents = 'none';
             captchaWrapper.classList.add('hidden');
-            const endTime = Date.now() + data.remainingTime * 1000;
-            localStorage.setItem('countdownEndTime', endTime);
             startCountdown(data.remainingTime);
         }
     })
@@ -106,27 +94,24 @@ function startCountdown(remaining) {
     countdownElement.style.display = 'block';
     timerElement.innerText = remaining;
     const interval = setInterval(() => {
-        remaining = Math.max(0, Math.ceil((localStorage.getItem('countdownEndTime') - Date.now()) / 1000));
-        timerElement.innerText = remaining;
         if (remaining <= 0) {
             clearInterval(interval);
             countdownElement.style.display = 'none';
-            localStorage.removeItem('countdownEndTime');
             resultElement.innerText = 'You can verify now.';
             resultElement.className = '';
             captchaWrapper.classList.remove('hidden');
             captchaWrapper.style.pointerEvents = 'auto';
             grecaptcha.reset();
             console.log('Countdown finished, CAPTCHA reset.');
+        } else {
+            remaining -= 1;
+            timerElement.innerText = remaining;
         }
     }, 1000);
 }
 
 function checkRateLimit() {
     console.log('Checking rate limit...');
-    const currentIp = getClientIp();
-    console.log('Current IP:', currentIp);
-
     fetch('/check-rate-limit', { credentials: 'include' })
         .then(res => res.json())
         .then(data => {
@@ -134,17 +119,10 @@ function checkRateLimit() {
             if (data.status === 429 && data.remainingTime) {
                 captchaWrapper.classList.add('hidden');
                 captchaWrapper.style.pointerEvents = 'none';
-                localStorage.setItem('countdownEndTime', Date.now() + data.remainingTime * 1000);
                 startCountdown(data.remainingTime);
                 resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
                 resultElement.className = 'error';
             } else {
-                // Xóa trạng thái cũ nếu IP thay đổi hoặc không bị limit
-                const storedEndTime = localStorage.getItem('countdownEndTime');
-                if (storedEndTime) {
-                    localStorage.removeItem('countdownEndTime');
-                    console.log('Cleared old countdown due to IP change or no limit.');
-                }
                 captchaWrapper.classList.remove('hidden');
                 captchaWrapper.style.pointerEvents = 'auto';
                 grecaptcha.reset();
@@ -159,5 +137,5 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initiating setup...');
     getCsrfToken();
     checkRateLimit();
-    displayIpInfo(); // Hiển thị IP khi tải trang
+    displayIpInfo(); // Hiển thị Public IP khi tải trang
 });
