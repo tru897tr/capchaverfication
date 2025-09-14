@@ -8,8 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // Lưu trữ trạng thái rate limit và CSRF token
-const requestTimes = new Map();
-const csrfTokens = new Map();
+const requestTimes = new Map(); // Map<IP, { timestamp: number, count: number, fingerprint: string, deviceBlocked: boolean }>
+const csrfTokens = new Map(); // Map<IP, CSRF token>
 const checkLimitTimes = new Map();
 
 app.use(express.json());
@@ -23,13 +23,43 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get('/get-csrf-token', (req, res) => {
+app.post('/get-csrf-token', (req, res) => {
     const ip = req.clientIp;
+    const { deviceInfo } = req.body;
+    let ipData = requestTimes.get(ip) || { timestamp: 0, count: 0, fingerprint: '', deviceBlocked: false };
+
+    console.log(`Checking device info for IP ${ip}:`, deviceInfo);
+
+    // Kiểm tra nếu thiết bị đã bị chặn
+    if (ipData.deviceBlocked) {
+        const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
+        console.log(`Device blocked for IP ${ip}, remaining time: ${remainingTime}s`);
+        if (remainingTime > 0) {
+            return res.json({ status: 429, remainingTime });
+        } else {
+            ipData.deviceBlocked = false;
+            ipData.count = 0;
+        }
+    }
+
+    // Kiểm tra nếu IP mới nhưng fingerprint đã bị chặn từ IP cũ
+    for (let [existingIp, data] of requestTimes.entries()) {
+        if (data.fingerprint === deviceInfo.fingerprint && data.deviceBlocked) {
+            const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
+            console.log(`Fingerprint ${deviceInfo.fingerprint} blocked from IP ${existingIp}, blocking new IP ${ip}`);
+            if (remainingTime > 0) {
+                requestTimes.set(ip, { timestamp: Date.now(), count: 0, fingerprint: deviceInfo.fingerprint, deviceBlocked: true });
+                return res.json({ status: 429, remainingTime });
+            }
+        }
+    }
+
     const token = crypto.randomBytes(16).toString('hex');
     csrfTokens.set(ip, token);
     setTimeout(() => csrfTokens.delete(ip), 60 * 1000);
+    requestTimes.set(ip, { ...ipData, fingerprint: deviceInfo.fingerprint });
     console.log(`Generated CSRF token for IP ${ip}: ${token}`);
-    res.json({ csrfToken: token });
+    res.json({ csrfToken: token, status: 200 });
 });
 
 const checkRateLimitLimiter = rateLimit({
@@ -51,14 +81,14 @@ app.get('/check-rate-limit', checkRateLimitLimiter, (req, res) => {
     const now = Date.now();
     
     if (!ipData || now - ipData.timestamp >= 5 * 60 * 1000) {
-        requestTimes.set(ip, { timestamp: now, count: 0 });
+        requestTimes.set(ip, { timestamp: now, count: 0, fingerprint: req.clientFingerprint, deviceBlocked: false });
         ipData = requestTimes.get(ip);
     }
 
     const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
 
     console.log(`Checking rate limit for IP ${ip}, count: ${ipData.count}, remainingTime: ${remainingTime}s, Fingerprint: ${req.clientFingerprint}`);
-    if (remainingTime > 0 && ipData.count > 0) {
+    if (remainingTime > 0 && (ipData.count > 0 || ipData.deviceBlocked)) {
         res.json({
             status: 429,
             remainingTime: remainingTime
@@ -73,7 +103,7 @@ const verifyLimiter = rateLimit({
     max: 1,
     keyGenerator: (req) => req.clientIp,
     handler: (req, res) => {
-        const ipData = requestTimes.get(req.clientIp) || { timestamp: 0, count: 0 };
+        const ipData = requestTimes.get(req.clientIp) || { timestamp: 0, count: 0, fingerprint: '', deviceBlocked: false };
         const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
         console.log(`Rate limit hit for IP ${req.clientIp}, remaining time: ${remainingTime}s, Fingerprint: ${req.clientFingerprint}`);
         res.status(429).json({
@@ -89,7 +119,7 @@ const verifyLimiter = rateLimit({
         let ipData = requestTimes.get(ip);
 
         if (!ipData || now - ipData.timestamp >= 5 * 60 * 1000) {
-            requestTimes.set(ip, { timestamp: now, count: 0 });
+            requestTimes.set(ip, { timestamp: now, count: 0, fingerprint: req.clientFingerprint, deviceBlocked: false });
             ipData = requestTimes.get(ip);
         }
 
@@ -101,9 +131,10 @@ const verifyLimiter = rateLimit({
         ipData.count += 1;
         ipData.timestamp = now;
         ipData.fingerprint = req.clientFingerprint;
+        if (ipData.count > 1) ipData.deviceBlocked = true;
         requestTimes.set(ip, ipData);
 
-        const allow = ipData.count <= 1;
+        const allow = ipData.count <= 1 && !ipData.deviceBlocked;
         return allow;
     }
 });
