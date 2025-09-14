@@ -32,11 +32,19 @@ const checkLimitTimes = new Map();
 app.use(express.json());
 app.use(express.static('public', { etag: false, lastModified: false })); // Ngăn cache tĩnh
 
+// Middleware để redirect root hoặc endpoint không xác định đến /verify
+app.use((req, res, next) => {
+    if (req.path === '/' || !req.path.startsWith('/get-csrf-token') && !req.path.startsWith('/verify') && !req.path.startsWith('/check-rate-limit')) {
+        return res.redirect('/verify');
+    }
+    next();
+});
+
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
     req.clientFingerprint = req.body.deviceInfo ? req.body.deviceInfo.fingerprint : `${req.clientIp}-${req.clientDevice}-${req.headers['accept'] || ''}`.slice(0, 100);
-    logger.info(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}`);
+    logger.info(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}, Path: ${req.path}`);
     next();
 });
 
@@ -234,6 +242,12 @@ app.post('/verify', verifyLimiter, (req, res) => {
         logger.error(`Exception verifying CAPTCHA for IP ${ip}: ${error.message}`);
         res.json({ success: false, message: 'Error verifying CAPTCHA' });
     }
+});
+
+// Xử lý 404
+app.use((req, res) => {
+    logger.info(`404 Not Found for path: ${req.path}`);
+    res.status(404).sendFile('404.html', { root: __dirname + '/public' });
 });
 
 app.listen(PORT, () => {
