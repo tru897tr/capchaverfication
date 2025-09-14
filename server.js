@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -8,8 +9,23 @@ const PORT = process.env.PORT || 10000;
 app.use(express.json());
 app.use(express.static('public'));
 
+// Rate limiting: 1 request mỗi 3 phút mỗi IP
+const verifyLimiter = rateLimit({
+    windowMs: 3 * 60 * 1000, // 3 phút
+    max: 1, // Giới hạn 1 request
+    message: { success: false, message: 'Too many attempts. Please try again later.' },
+    handler: (req, res, next, options) => {
+        const remainingTime = Math.ceil((options.windowMs - (Date.now() - req.rateLimit.resetTime)) / 1000);
+        res.status(429).json({
+            success: false,
+            message: 'Too many attempts. Please try again later.',
+            remainingTime
+        });
+    }
+});
+
 // Route xác minh CAPTCHA
-app.post('/verify', async (req, res) => {
+app.post('/verify', verifyLimiter, async (req, res) => {
     const { 'g-recaptcha-response': recaptchaResponse } = req.body;
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
@@ -32,12 +48,6 @@ app.post('/verify', async (req, res) => {
     } catch (error) {
         res.json({ success: false, message: 'Error verifying CAPTCHA' });
     }
-});
-
-// Route Get Link (ẩn, chỉ trả về khi verify thành công qua /verify)
-app.get('/get-redirect', (req, res) => {
-    // Không cho phép truy cập trực tiếp, yêu cầu verify trước
-    res.status(403).json({ success: false, message: 'Access denied. Complete CAPTCHA first.' });
 });
 
 app.listen(PORT, () => {
