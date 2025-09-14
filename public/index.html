@@ -1,1 +1,24 @@
-<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Xác Minh Captcha</title><style>body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0}.container{max-width:600px;margin:50px auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,.1);text-align:center}h1{color:#333;font-size:24px;margin-bottom:20px}.g-recaptcha{transform:scale(.9);margin:20px auto}#r{font-size:18px;color:#333;margin:20px 0}#cd{display:none;font-size:16px;color:#e74c3c;margin:20px 0}#glb{display:none;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:16px}#glb:hover{background:#2980b9}footer{font-size:14px;color:#777;margin-top:30px}</style><script async defer src="https://www.google.com/recaptcha/api.js"></script></head><body><div class="container"><h1>Xác Minh Captcha</h1><form id="cf"><input type="hidden" id="ct" name="ct"><div id="cw" class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF" data-callback="sf"></div></form><p id="r"></p><p id="cd">Bạn sẽ được xác minh lại sau <span id="t"></span> giây.</p><button id="glb">Lấy Link</button><footer id="f">&copy; 2025 bởi Nguyễn Trù</footer></div><script>!function(a,b){var c=a.getElementById("r"),d=a.getElementById("cd"),e=a.getElementById("t"),f=a.getElementById("glb"),g=10;function h(){g>0?(d.style.display="block",e.innerText=g,f.style.display="none",g--,setTimeout(h,1e3)):(d.style.display="none",f.style.display="block",c.innerText="Xác minh thành công!")}b=function(){a.getElementById("cf").addEventListener("submit",function(b){b.preventDefault(),c.innerText="Đang xác minh...",a.getElementById("ct").value="token_"+Math.random().toString(36).substr(2,9)});h()};a.addEventListener("DOMContentLoaded",function(){a.getElementById("cf").addEventListener("submit",b),a.getElementById("glb").addEventListener("click",function(){alert("Link của bạn đã sẵn sàng!")})})}(document,window);</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captcha Verification</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Captcha Verification</h1>
+        <form id="captcha-form">
+            <input type="hidden" id="csrf-token" name="csrf-token">
+            <div id="captcha-wrapper" class="g-recaptcha" data-sitekey="6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF" data-callback="submitForm"></div>
+        </form>
+        <p id="result"></p>
+        <p id="countdown" style="display: none;">You will be able to verify again after <span id="timer"></span> seconds.</p>
+        <button id="get-link-button" style="display: none;">Get Link</button>
+        <footer id="footer">© 2025 by Nguyen Tru</footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
