@@ -1,39 +1,40 @@
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('captcha-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const resultElement = document.getElementById('result');
-        const redirectButton = document.getElementById('redirect-button');
-        resultElement.innerText = '';
-        redirectButton.style.display = 'none';
+function submitForm() {
+    const resultElement = document.getElementById('result');
+    const getLinkButton = document.getElementById('get-link-button');
+    resultElement.innerText = '';
+    getLinkButton.style.display = 'none';
 
-        const response = grecaptcha.getResponse();
-        if (!response) {
-            resultElement.innerText = 'Please complete the CAPTCHA';
-            resultElement.className = 'error';
-            return;
+    const response = grecaptcha.getResponse();
+    if (!response) {
+        resultElement.innerText = 'Please complete the CAPTCHA';
+        resultElement.className = 'error';
+        return;
+    }
+
+    fetch('/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 'g-recaptcha-response': response })
+    })
+    .then(res => res.json())
+    .then(data => {
+        resultElement.innerText = data.message;
+        resultElement.className = data.success ? 'success' : 'error';
+
+        if (data.success) {
+            // Tự động redirect sau 2 giây
+            setTimeout(() => {
+                window.location.href = 'https://www.example.com/success'; // Thay bằng URL thực tế
+            }, 2000);
+            // Fallback: Hiển thị nút Get Link nếu redirect không hoạt động
+            getLinkButton.style.display = 'block';
+            getLinkButton.onclick = () => {
+                window.location.href = 'https://www.example.com/success'; // Thay bằng URL thực tế
+            };
         }
-
-        try {
-            const res = await fetch('/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 'g-recaptcha-response': response })
-            });
-
-            const data = await res.json();
-            resultElement.innerText = data.message;
-            resultElement.className = data.success ? 'success' : 'error';
-
-            if (data.success) {
-                redirectButton.style.display = 'block';
-            }
-        } catch (error) {
-            resultElement.innerText = 'Error verifying CAPTCHA';
-            resultElement.className = 'error';
-        }
+    })
+    .catch(error => {
+        resultElement.innerText = 'Error verifying CAPTCHA';
+        resultElement.className = 'error';
     });
-
-    document.getElementById('redirect-button').addEventListener('click', () => {
-        window.location.href = 'https://www.example.com/success'; // Thay bằng URL thực tế
-    });
-});
+}
