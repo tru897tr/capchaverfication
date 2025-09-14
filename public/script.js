@@ -6,6 +6,17 @@ const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
 const footer = document.getElementById('footer');
 
+// Lấy thông tin thiết bị chi tiết
+function getDeviceInfo() {
+    return {
+        userAgent: navigator.userAgent,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        platform: navigator.platform,
+        fingerprint: btoa(`${navigator.userAgent}${window.screen.width}${window.screen.height}${navigator.language}${navigator.platform}`).slice(0, 50)
+    };
+}
+
 // Lấy Public IP
 function getPublicIp() {
     console.log('Fetching public IP...');
@@ -33,13 +44,26 @@ function displayIpInfo() {
 
 function getCsrfToken() {
     console.log('Fetching CSRF token...');
-    fetch('/get-csrf-token', { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-            console.log('CSRF token fetched:', data.csrfToken);
-            csrfTokenInput.value = data.csrfToken;
-        })
-        .catch(error => console.error('Error fetching CSRF token:', error));
+    const deviceInfo = getDeviceInfo();
+    fetch('/get-csrf-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deviceInfo, clientIp: '' })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('CSRF token fetched:', data.csrfToken);
+        csrfTokenInput.value = data.csrfToken;
+        if (data.status === 429 && data.remainingTime) {
+            startCountdown(data.remainingTime);
+            resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
+            resultElement.className = 'error';
+            captchaWrapper.classList.add('hidden');
+            captchaWrapper.style.pointerEvents = 'none';
+        }
+    })
+    .catch(error => console.error('Error fetching CSRF token:', error));
 }
 
 function submitForm() {
@@ -116,32 +140,8 @@ function startCountdown(remaining) {
     }, 1000);
 }
 
-function checkRateLimit() {
-    console.log('Checking rate limit...');
-    fetch('/check-rate-limit', { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-            console.log('Rate limit check response:', data);
-            if (data.status === 429 && data.remainingTime) {
-                captchaWrapper.classList.add('hidden');
-                captchaWrapper.style.pointerEvents = 'none';
-                startCountdown(data.remainingTime);
-                resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
-                resultElement.className = 'error';
-            } else {
-                captchaWrapper.classList.remove('hidden');
-                captchaWrapper.style.pointerEvents = 'auto';
-                grecaptcha.reset();
-                resultElement.innerText = '';
-                resultElement.className = '';
-            }
-        })
-        .catch(error => console.error('Error checking rate limit:', error));
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initiating setup...');
     getCsrfToken();
-    checkRateLimit();
     displayIpInfo();
 });
