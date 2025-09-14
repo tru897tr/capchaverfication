@@ -14,11 +14,11 @@ const csrfTokens = new Map(); // Map<IP, CSRF token>
 app.use(express.json());
 app.use(express.static('public'));
 
-// Middleware để lấy IP của client
+// Middleware để lấy IP của client (ưu tiên X-Forwarded-For từ VPN/proxy)
 app.use((req, res, next) => {
-    req.clientIp = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
-    console.log(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}`);
+    console.log(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'N/A'}`);
     next();
 });
 
@@ -94,20 +94,15 @@ const verifyLimiter = rateLimit({
 
 // Route xác minh CAPTCHA với CSRF
 app.post('/verify', verifyLimiter, (req, res) => {
-    const { 'g-recaptcha-response': recaptchaResponse, 'csrf-token': csrfToken, clientIp, clientDevice } = req.body;
+    const { 'g-recaptcha-response': recaptchaResponse, 'csrf-token': csrfToken } = req.body;
     const ip = req.clientIp;
     const expectedToken = csrfTokens.get(ip);
 
-    console.log(`Verifying for IP ${ip}, Client IP ${clientIp}, Client Device ${clientDevice}, CSRF token: ${csrfToken}`);
+    console.log(`Verifying for IP ${ip}, CSRF token: ${csrfToken}`);
 
     if (!recaptchaResponse || !csrfToken || !expectedToken || csrfToken !== expectedToken) {
         console.log('Invalid CSRF token or missing CAPTCHA response');
         return res.json({ success: false, message: 'Invalid CSRF token or missing CAPTCHA response' });
-    }
-
-    if (!clientIp && !clientDevice) {
-        console.log('Missing client information');
-        return res.json({ success: false, message: 'Missing client information' });
     }
 
     try {
