@@ -35,8 +35,14 @@ app.get('/get-csrf-token', (req, res) => {
 // Kiểm tra trạng thái rate limit
 app.get('/check-rate-limit', (req, res) => {
     const ip = req.clientIp;
-    const ipData = requestTimes.get(ip) || { timestamp: 0, count: 0 };
+    let ipData = requestTimes.get(ip);
     const now = Date.now();
+    
+    if (!ipData || now - ipData.timestamp >= 5 * 60 * 1000) {
+        requestTimes.set(ip, { timestamp: now, count: 0 });
+        ipData = requestTimes.get(ip);
+    }
+
     const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
 
     console.log(`Checking rate limit for IP ${ip}, count: ${ipData.count}, remainingTime: ${remainingTime}s`);
@@ -99,7 +105,6 @@ app.post('/verify', verifyLimiter, (req, res) => {
         return res.json({ success: false, message: 'Invalid CSRF token or missing CAPTCHA response' });
     }
 
-    // Chỉ kiểm tra sự hiện diện, không yêu cầu giá trị cụ thể
     if (!clientIp && !clientDevice) {
         console.log('Missing client information');
         return res.json({ success: false, message: 'Missing client information' });
@@ -115,7 +120,7 @@ app.post('/verify', verifyLimiter, (req, res) => {
                 res.json({
                     success: true,
                     message: 'CAPTCHA verified successfully!',
-                    redirectUrl: redirectUrl // Luôn trả link nếu CAPTCHA hợp lệ
+                    redirectUrl: redirectUrl
                 });
             } else {
                 console.log(`CAPTCHA verification failed for IP ${ip}, errors: ${response.data['error-codes']}`);
