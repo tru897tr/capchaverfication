@@ -8,7 +8,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Cấu hình logging với Winston
+// Cấu hình logging với Winston để hiển thị trên Render stdout
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
@@ -16,15 +16,12 @@ const logger = winston.createLogger({
         winston.format.json()
     ),
     transports: [
-        new winston.transports.File({ filename: 'error.log', level: 'error' }),
-        new winston.transports.File({ filename: 'combined.log' })
+        new winston.transports.Console() // Ghi log ra stdout cho Render
     ]
 });
 
 if (process.env.NODE_ENV !== 'production') {
-    logger.add(new winston.transports.Console({
-        format: winston.format.simple()
-    }));
+    logger.add(new winston.transports.File({ filename: 'combined.log' }));
 }
 
 // Lưu trữ trạng thái rate limit và CSRF token
