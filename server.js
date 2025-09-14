@@ -12,9 +12,14 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Kết nối Redis
+// Kết nối Redis với retry
 const redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://red-d32s42umcj7s739sskrg:6379'
+    url: process.env.REDIS_URL || 'redis://red-d32s42umcj7s739sskrg:6379',
+    retry_strategy: (options) => {
+        console.warn('Redis connection failed, retrying...', options.attempt, options.total_retry_time);
+        if (options.attempt > 3) return undefined; // Stop after 3 attempts
+        return Math.min(options.attempt * 1000, 3000); // Retry interval: 1s, 2s, 3s
+    }
 });
 
 redisClient.on('error', (err) => {
@@ -90,7 +95,7 @@ app.use(session({
     cookie: { 
         secure: process.env.NODE_ENV === 'production', // HTTPS trên Render
         httpOnly: true, 
-        sameSite: 'strict', // Thêm để tăng bảo mật
+        sameSite: 'lax', // Thay strict thành lax để test, quay lại strict sau
         maxAge: 15 * 60 * 1000 // 15 phút
     }
 }));
@@ -101,7 +106,7 @@ app.use(csrf({ cookie: false }));
 // Rate limiting
 const verifyLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 phút
-    max: 10, // Tăng lên 10 để debug dễ hơn
+    max: 10, // Tăng để debug
     message: {
         success: false,
         message: 'Too many attempts, please try again later.',
@@ -133,12 +138,14 @@ app.use((err, req, res, next) => {
         console.error('CSRF Error:', {
             path: req.path,
             method: req.method,
-            session: req.sessionID
+            session: req.sessionID,
+            headerToken: req.headers['x-csrf-token'],
+            sessionToken: req.csrfToken()
         });
         return res.status(403).json({
             success: false,
             message: 'Invalid CSRF token',
-            debug: 'Server Error: CSRF token validation failed'
+            debug: 'Server Error: CSRF token validation failed. Check session or token mismatch.'
         });
     }
     next();
@@ -166,7 +173,8 @@ app.post('/verify', verifyLimiter, async (req, res) => {
 
     console.log('Verify request received:', {
         session: req.sessionID,
-        recaptchaResponse: !!recaptchaResponse
+        recaptchaResponse: !!recaptchaResponse,
+        csrfToken: req.headers['x-csrf-token']
     }); // Debug
 
     if (!secretKey) {
@@ -222,7 +230,8 @@ app.post('/verify', verifyLimiter, async (req, res) => {
 app.get('/get-redirect', (req, res) => {
     console.log('Get-redirect request, session:', {
         sessionID: req.sessionID,
-        isVerified: req.session.isVerified
+        isVerified: req.session.isVerified,
+        csrfToken: req.headers['x-csrf-token']
     }); // Debug
     if (!req.session.isVerified) {
         return res.status(403).json({
