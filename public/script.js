@@ -1,8 +1,11 @@
 function submitForm() {
     const resultElement = document.getElementById('result');
     const getLinkButton = document.getElementById('get-link-button');
+    const countdownElement = document.getElementById('countdown');
+    const timerElement = document.getElementById('timer');
     resultElement.innerText = '';
     getLinkButton.style.display = 'none';
+    countdownElement.style.display = 'none';
 
     const response = grecaptcha.getResponse();
     if (!response) {
@@ -33,6 +36,21 @@ function submitForm() {
                 getLinkButton.style.display = 'block';
                 getLinkButton.onclick = () => window.location.href = data.redirectUrl;
             }
+        } else if (data.remainingTime) {
+            // Hiển thị bộ đếm thời gian nếu bị limit
+            countdownElement.style.display = 'block';
+            let remaining = data.remainingTime;
+            timerElement.innerText = remaining;
+            const interval = setInterval(() => {
+                remaining--;
+                timerElement.innerText = remaining;
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    countdownElement.style.display = 'none';
+                    resultElement.innerText = 'You can verify now.';
+                    resultElement.className = '';
+                }
+            }, 1000);
         }
     })
     .catch(error => {
