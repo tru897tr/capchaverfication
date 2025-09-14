@@ -87,7 +87,8 @@ function submitForm() {
             'g-recaptcha-response': response,
             'csrf-token': csrfTokenInput.value,
             'clientIp': '',
-            'clientDevice': navigator.userAgent
+            'clientDevice': navigator.userAgent,
+            'deviceInfo': getDeviceInfo()
         })
     })
     .then(res => res.json())
