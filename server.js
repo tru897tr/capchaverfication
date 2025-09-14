@@ -4,11 +4,30 @@ const helmet = require('helmet');
 const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
+const RedisStore = require('connect-redis').default;
+const { createClient } = require('redis');
 const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+
+// Kết nối Redis
+const redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://red-d32s42umcj7s739sskrg:6379'
+});
+
+redisClient.on('error', (err) => {
+    console.error('Redis Client Error:', err);
+});
+
+redisClient.on('connect', () => {
+    console.log('Connected to Redis successfully');
+});
+
+redisClient.connect().catch((err) => {
+    console.error('Redis Connection Failed:', err);
+});
 
 // Mã hóa URL chuyển hướng
 const redirectUrl = 'https://www.example.com/success'; // Thay bằng URL thực tế
@@ -50,13 +69,14 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.static('public'));
 
-// Session middleware
+// Session middleware với Redis
 app.use(session({
+    store: new RedisStore({ client: redisClient }),
     secret: crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        secure: process.env.NODE_ENV === 'production', // HTTPS trên Render, HTTP cục bộ
+        secure: process.env.NODE_ENV === 'production', // HTTPS trên Render
         httpOnly: true, 
         maxAge: 15 * 60 * 1000 // 15 phút
     }
@@ -76,7 +96,7 @@ const verifyLimiter = rateLimit({
     }
 });
 
-// Chỉ cho phép POST cho /verify và GET cho /csrf-token, /get-redirect
+// Chỉ cho phép phương thức HTTP đúng
 app.use((req, res, next) => {
     const allowedMethods = {
         '/verify': ['POST'],
@@ -106,7 +126,7 @@ app.use((err, req, res, next) => {
     next();
 });
 
-// Route để lấy CSRF token
+// Route lấy CSRF token
 app.get('/csrf-token', (req, res) => {
     try {
         res.json({ csrfToken: req.csrfToken() });
@@ -119,7 +139,7 @@ app.get('/csrf-token', (req, res) => {
     }
 });
 
-// Route để xử lý xác minh CAPTCHA
+// Route xác minh CAPTCHA
 app.post('/verify', verifyLimiter, async (req, res) => {
     const { 'g-recaptcha-response': recaptchaResponse } = req.body;
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
@@ -167,7 +187,7 @@ app.post('/verify', verifyLimiter, async (req, res) => {
     }
 });
 
-// Route để lấy URL chuyển hướng
+// Route lấy URL chuyển hướng
 app.get('/get-redirect', (req, res) => {
     if (!req.session.isVerified) {
         return res.status(403).json({
