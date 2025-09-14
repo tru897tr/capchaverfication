@@ -22,15 +22,17 @@ function submitForm() {
         resultElement.className = data.success ? 'success' : 'error';
 
         if (data.success) {
-            // Tự động redirect sau 2 giây
+            // Tự động redirect sau 2 giây với link từ server
             setTimeout(() => {
-                window.location.href = 'https://www.example.com/success'; // Thay bằng URL thực tế
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                }
             }, 2000);
-            // Fallback: Hiển thị nút Get Link nếu redirect không hoạt động
-            getLinkButton.style.display = 'block';
-            getLinkButton.onclick = () => {
-                window.location.href = 'https://www.example.com/success'; // Thay bằng URL thực tế
-            };
+            // Fallback: Hiển thị nút Get Link với link từ server
+            if (data.redirectUrl) {
+                getLinkButton.style.display = 'block';
+                getLinkButton.onclick = () => window.location.href = data.redirectUrl;
+            }
         }
     })
     .catch(error => {
