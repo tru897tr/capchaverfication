@@ -1,5 +1,5 @@
 {
-    "name": "xyz789",
+    "name": "captcha-verification",
     "version": "1.0.0",
     "description": "Simple Capcha Verification",
     "main": "server.js",
