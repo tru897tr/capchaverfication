@@ -32,11 +32,6 @@ app.post('/verify', async (req, res) => {
     }
 });
 
-// Route redirect
-app.get('/get-redirect', (req, res) => {
-    res.json({ redirectUrl: 'https://www.example.com/success' }); // Thay bằng URL thực tế
-});
-
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
