@@ -14,7 +14,6 @@ function submitForm() {
         return;
     }
 
-    console.log('Sending verification request...');
     fetch('/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -22,43 +21,64 @@ function submitForm() {
     })
     .then(res => res.json())
     .then(data => {
-        console.log('Response from server:', data);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
 
         if (data.success) {
-            console.log('Verification successful, redirecting...');
+            // Tự động redirect sau 2 giây với link từ server
             setTimeout(() => {
                 if (data.redirectUrl) {
                     window.location.href = data.redirectUrl;
                 }
             }, 2000);
+            // Fallback: Hiển thị nút Get Link với link từ server
             if (data.redirectUrl) {
                 getLinkButton.style.display = 'block';
                 getLinkButton.onclick = () => window.location.href = data.redirectUrl;
             }
         } else if (data.status === 429 && data.remainingTime) {
-            console.log('Rate limit hit, starting countdown...', data.remainingTime);
-            countdownElement.style.display = 'block';
-            let remaining = data.remainingTime;
-            timerElement.innerText = remaining;
-            const interval = setInterval(() => {
-                remaining--;
-                timerElement.innerText = remaining;
-                if (remaining <= 0) {
-                    clearInterval(interval);
-                    countdownElement.style.display = 'none';
-                    resultElement.innerText = 'You can verify now.';
-                    resultElement.className = '';
-                    grecaptcha.reset();
-                    console.log('Countdown finished, CAPTCHA reset.');
-                }
-            }, 1000);
+            // Lưu thời gian kết thúc countdown vào localStorage
+            const endTime = Date.now() + data.remainingTime * 1000;
+            localStorage.setItem('countdownEndTime', endTime);
+            startCountdown(data.remainingTime);
         }
     })
     .catch(error => {
-        console.error('Error during verification:', error);
         resultElement.innerText = 'Error verifying CAPTCHA';
         resultElement.className = 'error';
     });
 }
+
+// Hàm bắt đầu bộ đếm thời gian
+function startCountdown(remaining) {
+    const countdownElement = document.getElementById('countdown');
+    const timerElement = document.getElementById('timer');
+    countdownElement.style.display = 'block';
+    timerElement.innerText = remaining;
+    const interval = setInterval(() => {
+        remaining--;
+        timerElement.innerText = remaining;
+        if (remaining <= 0) {
+            clearInterval(interval);
+            countdownElement.style.display = 'none';
+            localStorage.removeItem('countdownEndTime');
+            resultElement.innerText = 'You can verify now.';
+            resultElement.className = '';
+            grecaptcha.reset(); // Reset CAPTCHA để verify lại
+        }
+    }, 1000);
+}
+
+// Kiểm tra countdown khi tải trang
+document.addEventListener('DOMContentLoaded', () => {
+    const endTime = localStorage.getItem('countdownEndTime');
+    if (endTime) {
+        let remaining = Math.ceil((endTime - Date.now()) / 1000);
+        if (remaining > 0) {
+            startCountdown(remaining);
+        } else {
+            localStorage.removeItem('countdownEndTime');
+            grecaptcha.reset();
+        }
+    }
+});
