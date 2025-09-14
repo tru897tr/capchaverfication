@@ -11,7 +11,10 @@ async function parseResponse(response) {
 // Lấy CSRF token từ server khi trang tải
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const res = await fetch('/csrf-token');
+        const res = await fetch('/csrf-token', {
+            method: 'GET',
+            credentials: 'include' // Gửi cookie session
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const data = await parseResponse(res);
         document.getElementById('csrf-token').value = data.csrfToken;
@@ -53,6 +56,7 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrfToken
             },
+            credentials: 'include', // Gửi cookie session
             body: JSON.stringify({ 'g-recaptcha-response': response })
         });
 
@@ -83,7 +87,8 @@ document.getElementById('captcha-form').addEventListener('submit', async (e) => 
 document.getElementById('redirect-button').addEventListener('click', async () => {
     try {
         const res = await fetch('/get-redirect', {
-            headers: { 'X-CSRF-Token': document.getElementById('csrf-token').value }
+            headers: { 'X-CSRF-Token': document.getElementById('csrf-token').value },
+            credentials: 'include' // Gửi cookie session
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const data = await parseResponse(res);
@@ -99,6 +104,6 @@ document.getElementById('redirect-button').addEventListener('click', async () =>
         document.getElementById('result').innerText = 'Error fetching redirect URL';
         document.getElementById('result').className = 'error';
         document.getElementById('debug').innerText = `Client Error: ${error.message}`;
-        document.getElementById('debug').className = 'debug-panel active';
+        debugElement.className = 'debug-panel active';
     }
 });
