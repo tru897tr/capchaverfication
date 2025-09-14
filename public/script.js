@@ -14,6 +14,7 @@ function submitForm() {
         return;
     }
 
+    console.log('Sending verification request...');
     fetch('/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -21,23 +22,23 @@ function submitForm() {
     })
     .then(res => res.json())
     .then(data => {
+        console.log('Response from server:', data);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
 
         if (data.success) {
-            // Tự động redirect sau 2 giây với link từ server
+            console.log('Verification successful, redirecting...');
             setTimeout(() => {
                 if (data.redirectUrl) {
                     window.location.href = data.redirectUrl;
                 }
             }, 2000);
-            // Fallback: Hiển thị nút Get Link với link từ server
             if (data.redirectUrl) {
                 getLinkButton.style.display = 'block';
                 getLinkButton.onclick = () => window.location.href = data.redirectUrl;
             }
         } else if (data.status === 429 && data.remainingTime) {
-            // Hiển thị bộ đếm thời gian nếu bị limit
+            console.log('Rate limit hit, starting countdown...', data.remainingTime);
             countdownElement.style.display = 'block';
             let remaining = data.remainingTime;
             timerElement.innerText = remaining;
@@ -49,12 +50,14 @@ function submitForm() {
                     countdownElement.style.display = 'none';
                     resultElement.innerText = 'You can verify now.';
                     resultElement.className = '';
-                    grecaptcha.reset(); // Reset CAPTCHA để verify lại
+                    grecaptcha.reset();
+                    console.log('Countdown finished, CAPTCHA reset.');
                 }
             }, 1000);
         }
     })
     .catch(error => {
+        console.error('Error during verification:', error);
         resultElement.innerText = 'Error verifying CAPTCHA';
         resultElement.className = 'error';
     });
