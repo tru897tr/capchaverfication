@@ -6,6 +6,15 @@ const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
 const footer = document.getElementById('footer');
 
+let recaptchaWidgetId = null;
+
+function onRecaptchaLoad() {
+    recaptchaWidgetId = grecaptcha.render('captcha-wrapper', {
+        'sitekey': '6LfjhMYrAAAAAOfbm1shxCTML0WY5_HyJNAbnQBF',
+        'callback': submitForm
+    });
+}
+
 // Lấy thông tin thiết bị chi tiết
 function getDeviceInfo() {
     return {
@@ -19,17 +28,10 @@ function getDeviceInfo() {
 
 // Lấy Public IP
 function getPublicIp() {
-    console.log('Fetching public IP...');
     return fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
-        .then(data => {
-            console.log('Public IP fetched:', data.ip);
-            return data.ip;
-        })
-        .catch(error => {
-            console.error('Error fetching public IP:', error);
-            return 'Unable to fetch public IP';
-        });
+        .then(data => data.ip)
+        .catch(() => 'Unable to fetch public IP');
 }
 
 function displayIpInfo() {
@@ -38,12 +40,10 @@ function displayIpInfo() {
         ipInfoDiv.id = 'ip-info';
         ipInfoDiv.innerHTML = `<p>Public IP: ${publicIp}</p>`;
         footer.appendChild(ipInfoDiv);
-        console.log('Public IP displayed:', publicIp);
     });
 }
 
 function getCsrfToken() {
-    console.log('Fetching CSRF token...');
     const deviceInfo = getDeviceInfo();
     fetch('/get-csrf-token', {
         method: 'POST',
@@ -53,7 +53,6 @@ function getCsrfToken() {
     })
     .then(res => res.json())
     .then(data => {
-        console.log('CSRF token fetched:', data.csrfToken);
         csrfTokenInput.value = data.csrfToken;
         if (data.status === 429 && data.remainingTime) {
             startCountdown(data.remainingTime);
@@ -61,25 +60,32 @@ function getCsrfToken() {
             resultElement.className = 'error';
             captchaWrapper.classList.add('hidden');
             captchaWrapper.style.pointerEvents = 'none';
+        } else {
+            if (recaptchaWidgetId) grecaptcha.reset(recaptchaWidgetId);
+            captchaWrapper.classList.remove('hidden');
+            captchaWrapper.style.pointerEvents = 'auto';
+            resultElement.innerText = '';
+            resultElement.className = '';
         }
     })
-    .catch(error => console.error('Error fetching CSRF token:', error));
+    .catch(() => {
+        resultElement.innerText = 'Error loading page';
+        resultElement.className = 'error';
+    });
 }
 
 function submitForm() {
-    console.log('Submitting form...');
     resultElement.innerText = '';
     getLinkButton.style.display = 'none';
     countdownElement.style.display = 'none';
 
-    const response = grecaptcha.getResponse();
+    const response = grecaptcha.getResponse(recaptchaWidgetId);
     if (!response) {
         resultElement.innerText = 'Please complete the CAPTCHA';
         resultElement.className = 'error';
         return;
     }
 
-    console.log('Sending verification request with reCAPTCHA response:', response);
     fetch('/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,12 +99,10 @@ function submitForm() {
     })
     .then(res => res.json())
     .then(data => {
-        console.log('Server response:', data);
         resultElement.innerText = data.message;
         resultElement.className = data.success ? 'success' : 'error';
 
         if (data.success && data.redirectUrl) {
-            console.log('Verification successful, redirect URL received:', data.redirectUrl);
             captchaWrapper.classList.add('hidden');
             setTimeout(() => {
                 window.location.href = data.redirectUrl;
@@ -106,34 +110,26 @@ function submitForm() {
             getLinkButton.style.display = 'block';
             getLinkButton.onclick = () => window.location.href = data.redirectUrl;
         } else if (data.status === 429 && data.remainingTime) {
-            console.log('Rate limit hit, remaining time:', data.remainingTime);
-            grecaptcha.reset();
+            grecaptcha.reset(recaptchaWidgetId);
             captchaWrapper.style.pointerEvents = 'none';
             captchaWrapper.classList.add('hidden');
             startCountdown(data.remainingTime);
         }
     })
-    .catch(error => {
-        console.error('Error during verification:', error);
+    .catch(() => {
         resultElement.innerText = 'Error verifying CAPTCHA';
         resultElement.className = 'error';
     });
 }
 
 function startCountdown(remaining) {
-    console.log('Starting countdown with remaining:', remaining);
     countdownElement.style.display = 'block';
     timerElement.innerText = remaining;
     const interval = setInterval(() => {
         if (remaining <= 0) {
             clearInterval(interval);
             countdownElement.style.display = 'none';
-            resultElement.innerText = 'You can verify now.';
-            resultElement.className = '';
-            captchaWrapper.classList.remove('hidden');
-            captchaWrapper.style.pointerEvents = 'auto';
-            grecaptcha.reset();
-            console.log('Countdown finished, CAPTCHA reset.');
+            getCsrfToken(); // Làm mới trạng thái từ server
         } else {
             remaining -= 1;
             timerElement.innerText = remaining;
@@ -142,7 +138,12 @@ function startCountdown(remaining) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Page loaded, initiating setup...');
     getCsrfToken();
     displayIpInfo();
+    // Retry if reCAPTCHA fails to load
+    setTimeout(() => {
+        if (!recaptchaWidgetId && typeof grecaptcha !== 'undefined') {
+            onRecaptchaLoad();
+        }
+    }, 2000);
 });
