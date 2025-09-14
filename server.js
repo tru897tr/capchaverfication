@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // Lưu trữ trạng thái rate limit và CSRF token
-const requestTimes = new Map(); // Map<IP, { timestamp: number, count: number, devices: Set }>
+const requestTimes = new Map(); // Map<IP, { timestamp: number, count: number }>
 const csrfTokens = new Map(); // Map<IP, CSRF token>
 
 app.use(express.json());
@@ -35,7 +35,7 @@ app.get('/get-csrf-token', (req, res) => {
 // Kiểm tra trạng thái rate limit
 app.get('/check-rate-limit', (req, res) => {
     const ip = req.clientIp;
-    const ipData = requestTimes.get(ip) || { timestamp: 0, count: 0, devices: new Set() };
+    const ipData = requestTimes.get(ip) || { timestamp: 0, count: 0 };
     const now = Date.now();
     const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
 
@@ -72,20 +72,8 @@ const verifyLimiter = rateLimit({
         let ipData = requestTimes.get(ip);
 
         if (!ipData || now - ipData.timestamp >= 5 * 60 * 1000) {
-            requestTimes.set(ip, { timestamp: now, count: 0, devices: new Set() });
+            requestTimes.set(ip, { timestamp: now, count: 0 });
             ipData = requestTimes.get(ip);
-        }
-
-        const device = req.clientDevice;
-        const existingDevices = ipData.devices;
-        if (!existingDevices.has(device)) {
-            existingDevices.add(device);
-            ipData.devices = existingDevices;
-            requestTimes.set(ip, ipData);
-            if (ipData.count > 0) {
-                console.log(`New device ${device} on IP ${ip} blocked, count: ${ipData.count}`);
-                return false; // Chặn thiết bị mới nếu IP đã dùng quota
-            }
         }
 
         ipData.count += 1;
@@ -104,15 +92,16 @@ app.post('/verify', verifyLimiter, (req, res) => {
     const ip = req.clientIp;
     const expectedToken = csrfTokens.get(ip);
 
-    console.log(`Verifying for IP ${ip}, Device ${clientDevice}, Client IP ${clientIp}, CSRF token: ${csrfToken}`);
+    console.log(`Verifying for IP ${ip}, Client IP ${clientIp}, Client Device ${clientDevice}, CSRF token: ${csrfToken}`);
 
     if (!recaptchaResponse || !csrfToken || !expectedToken || csrfToken !== expectedToken) {
         console.log('Invalid CSRF token or missing CAPTCHA response');
         return res.json({ success: false, message: 'Invalid CSRF token or missing CAPTCHA response' });
     }
 
-    if (!clientIp || !clientDevice) {
-        console.log('Missing client IP or device information');
+    // Chỉ kiểm tra sự hiện diện, không yêu cầu giá trị cụ thể
+    if (!clientIp && !clientDevice) {
+        console.log('Missing client information');
         return res.json({ success: false, message: 'Missing client information' });
     }
 
@@ -121,12 +110,12 @@ app.post('/verify', verifyLimiter, (req, res) => {
             `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptchaResponse}`
         ).then(response => {
             if (response.data.success) {
-                console.log(`CAPTCHA verified for IP ${ip}, Device ${clientDevice}`);
+                console.log(`CAPTCHA verified for IP ${ip}`);
                 const redirectUrl = 'https://www.example.com/success'; // Thay bằng URL thực tế
                 res.json({
                     success: true,
                     message: 'CAPTCHA verified successfully!',
-                    redirectUrl: clientIp && clientDevice ? redirectUrl : null // Chỉ trả link nếu có IP và thiết bị
+                    redirectUrl: redirectUrl // Luôn trả link nếu CAPTCHA hợp lệ
                 });
             } else {
                 console.log(`CAPTCHA verification failed for IP ${ip}, errors: ${response.data['error-codes']}`);
