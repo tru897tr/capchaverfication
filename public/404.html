@@ -10,7 +10,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -20,6 +20,18 @@
         .page_404 {
             text-align: center;
             padding: 20px;
+            animation: fadeIn 1.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         .container {
@@ -29,54 +41,74 @@
 
         .four_zero_four_bg {
             background: #fff;
-            height: 200px;
-            width: 200px;
-            margin: 0 auto;
+            height: 250px;
+            width: 250px;
+            margin: 0 auto 30px;
             border-radius: 50%;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .four_zero_four_bg:hover {
+            transform: scale(1.05);
         }
 
         .four_zero_four_bg h1 {
-            font-size: 80px;
-            color: #333;
+            font-size: 100px;
+            color: #e74c3c;
             margin: 0;
             font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .contant_box_404 {
             background: #fff;
-            padding: 30px;
+            padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            animation: slideUp 1s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .contant_box_404 h3 {
-            font-size: 24px;
+            font-size: 28px;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
 
         .contant_box_404 p {
-            font-size: 16px;
+            font-size: 18px;
             color: #666;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .link_404 {
-            padding: 10px 20px;
-            background-color: #007bff;
+            padding: 12px 30px;
+            background-color: #2ecc71;
             color: #fff;
             text-decoration: none;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.3s;
         }
 
         .link_404:hover {
-            background-color: #0056b3;
+            background-color: #27ae60;
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -87,11 +119,11 @@
                 <div class="col-sm-12">
                     <div class="col-sm-10 col-sm-offset-1 text-center">
                         <div class="four_zero_four_bg">
-                            <h1 class="text-center">404</h1>
+                            <h1>404</h1>
                         </div>
                         <div class="contant_box_404">
-                            <h3 class="h2">Look like you're lost</h3>
-                            <p>The page you are looking for not available!</p>
+                            <h3>Look like you're lost</h3>
+                            <p>The page you are looking for is not available!</p>
                             <a href="/verify" class="link_404">Go to Home</a>
                         </div>
                     </div>
