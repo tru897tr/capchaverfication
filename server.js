@@ -30,13 +30,11 @@ const checkLimitTimes = new Map();
 app.use(express.json());
 app.use(express.static('public', { etag: false, lastModified: false }));
 
-// Serve /verify explicitly
 app.get('/verify', (req, res) => {
     logger.info(`Serving /verify for IP: ${req.clientIp}`);
     res.sendFile('index.html', { root: __dirname + '/public' });
 });
 
-// Redirect root to /verify
 app.get('/', (req, res) => {
     logger.info(`Redirecting from / to /verify for IP: ${req.clientIp}`);
     res.redirect('/verify');
