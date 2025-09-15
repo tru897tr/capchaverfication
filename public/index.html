@@ -19,13 +19,13 @@
 <body>
     <div class="container">
         <h1>Captcha Verification</h1>
-        <form id="captcha-form">
+        <form id="captcha-form" class="form-group">
             <input type="hidden" id="csrf-token" name="csrf-token">
-            <div id="captcha-wrapper"></div>
+            <div id="captcha-wrapper" class="captcha-box"></div>
         </form>
-        <p id="result"></p>
-        <p id="countdown" style="display: none;">You will be able to verify again after <span id="timer"></span> seconds.</p>
-        <button id="get-link-button" style="display: none;">Get Link</button>
+        <p id="result" class="result-text"></p>
+        <p id="countdown" class="countdown-text" style="display: none;">You will be able to verify again after <span id="timer"></span> seconds.</p>
+        <button id="get-link-button" class="btn">Get Link</button>
         <footer id="footer">© 2025 by Nguyen Tru</footer>
     </div>
     <script src="script.js"></script>
