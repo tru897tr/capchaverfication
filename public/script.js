@@ -43,32 +43,34 @@ function displayIpInfo() {
 
 function getCsrfToken() {
     const deviceInfo = getDeviceInfo();
-    fetch('/get-csrf-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ deviceInfo, clientIp: '' })
-    })
-    .then(res => res.json())
-    .then(data => {
-        csrfTokenInput.value = data.csrfToken;
-        if (data.status === 429 && data.remainingTime) {
-            startCountdown(data.remainingTime);
-            resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
+    getPublicIp().then(clientIp => {
+        fetch('/get-csrf-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ deviceInfo, clientIp })
+        })
+        .then(res => res.json())
+        .then(data => {
+            csrfTokenInput.value = data.csrfToken;
+            if (data.status === 429 && data.remainingTime) {
+                startCountdown(data.remainingTime);
+                resultElement.innerText = `Rate limited, remaining time: ${data.remainingTime} seconds`;
+                resultElement.className = 'error';
+                captchaWrapper.classList.add('hidden');
+                captchaWrapper.style.pointerEvents = 'none';
+            } else {
+                if (recaptchaWidgetId) grecaptcha.reset(recaptchaWidgetId);
+                captchaWrapper.classList.remove('hidden');
+                captchaWrapper.style.pointerEvents = 'auto';
+                resultElement.innerText = '';
+                resultElement.className = '';
+            }
+        })
+        .catch(() => {
+            resultElement.innerText = 'Error loading page';
             resultElement.className = 'error';
-            captchaWrapper.classList.add('hidden');
-            captchaWrapper.style.pointerEvents = 'none';
-        } else {
-            if (recaptchaWidgetId) grecaptcha.reset(recaptchaWidgetId);
-            captchaWrapper.classList.remove('hidden');
-            captchaWrapper.style.pointerEvents = 'auto';
-            resultElement.innerText = '';
-            resultElement.className = '';
-        }
-    })
-    .catch(() => {
-        resultElement.innerText = 'Error loading page';
-        resultElement.className = 'error';
+        });
     });
 }
 
@@ -84,39 +86,41 @@ function submitForm() {
         return;
     }
 
-    fetch('/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            'g-recaptcha-response': response,
-            'csrf-token': csrfTokenInput.value,
-            'clientIp': '',
-            'clientDevice': navigator.userAgent,
-            'deviceInfo': getDeviceInfo()
+    getPublicIp().then(clientIp => {
+        fetch('/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                'g-recaptcha-response': response,
+                'csrf-token': csrfTokenInput.value,
+                'clientIp': clientIp,
+                'clientDevice': navigator.userAgent,
+                'deviceInfo': getDeviceInfo()
+            })
         })
-    })
-    .then(res => res.json())
-    .then(data => {
-        resultElement.innerText = data.message;
-        resultElement.className = data.success ? 'success' : 'error';
+        .then(res => res.json())
+        .then(data => {
+            resultElement.innerText = data.message;
+            resultElement.className = data.success ? 'success' : 'error';
 
-        if (data.success && data.redirectUrl) {
-            captchaWrapper.classList.add('hidden');
-            setTimeout(() => {
-                window.location.href = data.redirectUrl;
-            }, 2000);
-            getLinkButton.style.display = 'block';
-            getLinkButton.onclick = () => window.location.href = data.redirectUrl;
-        } else if (data.status === 429 && data.remainingTime) {
-            grecaptcha.reset(recaptchaWidgetId);
-            captchaWrapper.style.pointerEvents = 'none';
-            captchaWrapper.classList.add('hidden');
-            startCountdown(data.remainingTime);
-        }
-    })
-    .catch(() => {
-        resultElement.innerText = 'Error verifying CAPTCHA';
-        resultElement.className = 'error';
+            if (data.success && data.redirectUrl) {
+                captchaWrapper.classList.add('hidden');
+                setTimeout(() => {
+                    window.location.href = data.redirectUrl;
+                }, 2000);
+                getLinkButton.style.display = 'block';
+                getLinkButton.onclick = () => window.location.href = data.redirectUrl;
+            } else if (data.status === 429 && data.remainingTime) {
+                grecaptcha.reset(recaptchaWidgetId);
+                captchaWrapper.style.pointerEvents = 'none';
+                captchaWrapper.classList.add('hidden');
+                startCountdown(data.remainingTime);
+            }
+        })
+        .catch(() => {
+            resultElement.innerText = 'Error verifying CAPTCHA';
+            resultElement.className = 'error';
+        });
     });
 }
 
