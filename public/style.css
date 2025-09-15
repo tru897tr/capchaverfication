@@ -1,8 +1,8 @@
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+    background: linear-gradient(135deg, #e0eafc, #cfdef3);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -13,7 +13,7 @@ body {
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: scale(0.9);
+        transform: scale(0.95);
     }
     to {
         opacity: 1;
@@ -24,10 +24,10 @@ body {
 .container {
     text-align: center;
     background: #ffffff;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-    max-width: 500px;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    max-width: 450px;
     width: 90%;
     animation: slideUp 1s ease-out;
 }
@@ -35,7 +35,7 @@ body {
 @keyframes slideUp {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(30px);
     }
     to {
         opacity: 1;
@@ -44,126 +44,136 @@ body {
 }
 
 .page_404 .container {
-    max-width: 600px;
+    max-width: 650px;
+    padding: 30px;
 }
 
 h1 {
-    color: #333;
-    margin-bottom: 20px;
-    font-size: 2em;
+    color: #2c3e50;
+    margin-bottom: 25px;
+    font-size: 2.2em;
+    font-weight: 600;
 }
 
-#captcha-wrapper {
-    margin-bottom: 15px;
+.form-group {
+    margin-bottom: 20px;
+}
+
+.captcha-box {
+    margin-bottom: 20px;
     transition: opacity 0.5s;
 }
 
-#captcha-wrapper.hidden {
+.captcha-box.hidden {
     opacity: 0;
     height: 0;
     overflow: hidden;
 }
 
-#result {
-    margin-top: 15px;
-    color: #333;
+.result-text {
+    margin-top: 20px;
+    color: #2c3e50;
+    font-size: 1.1em;
 }
 
-#result.success {
-    color: #2ecc71;
+.result-text.success {
+    color: #27ae60;
 }
 
-#result.error {
+.result-text.error {
     color: #e74c3c;
 }
 
-#countdown {
-    margin-top: 15px;
-    color: #f39c12;
+.countdown-text {
+    margin-top: 20px;
+    color: #e67e22;
+    font-size: 1.1em;
 }
 
-#get-link-button {
-    padding: 12px 25px;
-    background-color: #2ecc71;
+.btn {
+    padding: 12px 30px;
+    background-color: #3498db;
     color: #fff;
     border: none;
-    border-radius: 5px;
+    border-radius: 25px;
     cursor: pointer;
-    margin-top: 15px;
-    transition: background-color 0.3s, transform 0.3s;
+    font-size: 1em;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    display: inline-block;
 }
 
-#get-link-button:hover {
-    background-color: #27ae60;
-    transform: translateY(-2px);
+.btn:hover {
+    background-color: #2980b9;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
 }
 
 footer {
-    margin-top: 20px;
-    font-size: 12px;
-    color: #666;
+    margin-top: 25px;
+    font-size: 14px;
+    color: #7f8c8d;
     text-align: center;
 }
 
 #ip-info {
-    margin-top: 5px;
-    font-size: 12px;
-    color: #444;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #7f8c8d;
 }
 
 .four_zero_four_bg {
-    background: #fff;
-    height: 250px;
-    width: 250px;
-    margin: 0 auto 30px;
+    background: #ffffff;
+    height: 300px;
+    width: 300px;
+    margin: 0 auto 40px;
     border-radius: 50%;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.3s ease;
+    background: linear-gradient(135deg, #ffffff, #ecf0f1);
+    transition: transform 0.4s ease;
 }
 
 .four_zero_four_bg:hover {
-    transform: scale(1.05);
+    transform: scale(1.1);
 }
 
 .four_zero_four_bg h1 {
-    font-size: 100px;
+    font-size: 120px;
     color: #e74c3c;
     margin: 0;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+    text-shadow: 3px 3px 6px rgba(231, 76, 60, 0.2);
 }
 
 .contant_box_404 {
-    padding: 20px;
+    padding: 25px;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
 }
 
 .contant_box_404 h3 {
-    font-size: 28px;
-    color: #333;
+    font-size: 32px;
+    color: #2c3e50;
     margin-bottom: 15px;
     font-weight: 600;
 }
 
 .contant_box_404 p {
     font-size: 18px;
-    color: #666;
-    margin-bottom: 25px;
+    color: #7f8c8d;
+    margin-bottom: 30px;
 }
 
 .link_404 {
-    padding: 12px 30px;
-    background-color: #2ecc71;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 5px;
-    font-weight: bold;
-    transition: background-color 0.3s, transform 0.3s;
+    background-color: #e74c3c;
 }
 
 .link_404:hover {
-    background-color: #27ae60;
-    transform: translateY(-2px);
+    background-color: #c0392b;
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
 }
