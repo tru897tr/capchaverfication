@@ -8,7 +8,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Cấu hình logging với Winston
 const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
@@ -16,7 +15,7 @@ const logger = winston.createLogger({
         winston.format.json()
     ),
     transports: [
-        new winston.transports.Console() // Ghi log ra stdout cho Render
+        new winston.transports.Console()
     ]
 });
 
@@ -24,21 +23,25 @@ if (process.env.NODE_ENV !== 'production') {
     logger.add(new winston.transports.File({ filename: 'combined.log' }));
 }
 
-// Lưu trữ trạng thái rate limit và CSRF token
-const requestTimes = new Map(); // Map<fingerprint, { timestamp: number, count: number, ipBlocked: Map<IP, boolean> }>
-const csrfTokens = new Map(); // Map<IP, CSRF token>
+const requestTimes = new Map();
+const csrfTokens = new Map();
 const checkLimitTimes = new Map();
 
 app.use(express.json());
-app.use(express.static('public', { etag: false, lastModified: false })); // Ngăn cache tĩnh
+app.use(express.static('public', { etag: false, lastModified: false }));
 
-// Middleware để redirect root đến /verify
+// Serve /verify explicitly
+app.get('/verify', (req, res) => {
+    logger.info(`Serving /verify for IP: ${req.clientIp}`);
+    res.sendFile('index.html', { root: __dirname + '/public' });
+});
+
+// Redirect root to /verify
 app.get('/', (req, res) => {
     logger.info(`Redirecting from / to /verify for IP: ${req.clientIp}`);
     res.redirect('/verify');
 });
 
-// Middleware để xử lý thông tin client
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
@@ -54,7 +57,6 @@ app.post('/get-csrf-token', (req, res) => {
     const now = Date.now();
     let deviceData = requestTimes.get(fingerprint) || { timestamp: now, count: 0, ipBlocked: new Map() };
 
-    // Kiểm tra nếu IP đã bị chặn từ bất kỳ fingerprint nào
     for (let [existingFingerprint, data] of requestTimes.entries()) {
         if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
             const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
@@ -68,14 +70,11 @@ app.post('/get-csrf-token', (req, res) => {
         }
     }
 
-    // Kiểm tra nếu fingerprint đã bị chặn từ bất kỳ IP nào
     if (deviceData.ipBlocked.size > 0) {
         const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
-        if (remainingTime > 0) {
-            if (deviceData.ipBlocked.get(ip) || [...deviceData.ipBlocked.values()].some(blocked => blocked)) {
-                logger.info(`Fingerprint ${fingerprint} or IP ${ip} blocked, remaining time: ${remainingTime}s`);
-                return res.json({ status: 429, remainingTime });
-            }
+        if (remainingTime > 0 && (deviceData.ipBlocked.get(ip) || [...deviceData.ipBlocked.values()].some(blocked => blocked))) {
+            logger.info(`Fingerprint ${fingerprint} or IP ${ip} blocked, remaining time: ${remainingTime}s`);
+            return res.json({ status: 429, remainingTime });
         } else {
             deviceData.ipBlocked.clear();
             deviceData.count = 0;
@@ -96,10 +95,7 @@ const checkRateLimitLimiter = rateLimit({
     keyGenerator: (req) => req.clientIp,
     handler: (req, res) => {
         logger.info(`Flood limit hit for IP ${req.clientIp}`);
-        res.status(429).json({
-            status: 429,
-            message: 'Too many check requests. Please wait.'
-        });
+        res.status(429).json({ status: 429, message: 'Too many check requests. Please wait.' });
     }
 });
 
@@ -119,10 +115,7 @@ app.get('/check-rate-limit', checkRateLimitLimiter, (req, res) => {
 
     logger.info(`Checking rate limit for IP ${ip}, Fingerprint: ${fingerprint}, count: ${deviceData.count}, remainingTime: ${remainingTime}s, IP Blocked: ${ipBlocked}`);
     if (remainingTime > 0 && (deviceData.count > 0 || ipBlocked)) {
-        res.json({
-            status: 429,
-            remainingTime: remainingTime
-        });
+        res.json({ status: 429, remainingTime });
     } else {
         res.json({ status: 200 });
     }
@@ -156,7 +149,6 @@ const verifyLimiter = rateLimit({
             requestTimes.set(fingerprint, deviceData);
         }
 
-        // Kiểm tra nếu IP đã bị chặn từ bất kỳ fingerprint nào
         for (let [existingFingerprint, data] of requestTimes.entries()) {
             if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
                 const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
@@ -170,7 +162,6 @@ const verifyLimiter = rateLimit({
             }
         }
 
-        // Kiểm tra nếu fingerprint đã bị chặn từ IP khác
         if (deviceData.ipBlocked.size > 0) {
             const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
             if (remainingTime > 0 && [...deviceData.ipBlocked.values()].some(blocked => blocked)) {
@@ -242,7 +233,6 @@ app.post('/verify', verifyLimiter, (req, res) => {
     }
 });
 
-// Xử lý 404
 app.use((req, res) => {
     logger.info(`404 Not Found for path: ${req.path}`);
     res.status(404).sendFile('404.html', { root: __dirname + '/public' });
