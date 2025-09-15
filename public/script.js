@@ -15,7 +15,6 @@ function onRecaptchaLoad() {
     });
 }
 
-// Lấy thông tin thiết bị chi tiết
 function getDeviceInfo() {
     return {
         userAgent: navigator.userAgent,
@@ -26,7 +25,6 @@ function getDeviceInfo() {
     };
 }
 
-// Lấy Public IP
 function getPublicIp() {
     return fetch('https://api.ipify.org?format=json')
         .then(response => response.json())
@@ -129,7 +127,7 @@ function startCountdown(remaining) {
         if (remaining <= 0) {
             clearInterval(interval);
             countdownElement.style.display = 'none';
-            getCsrfToken(); // Làm mới trạng thái từ server
+            getCsrfToken();
         } else {
             remaining -= 1;
             timerElement.innerText = remaining;
@@ -140,7 +138,6 @@ function startCountdown(remaining) {
 document.addEventListener('DOMContentLoaded', () => {
     getCsrfToken();
     displayIpInfo();
-    // Retry if reCAPTCHA fails to load
     setTimeout(() => {
         if (!recaptchaWidgetId && typeof grecaptcha !== 'undefined') {
             onRecaptchaLoad();
