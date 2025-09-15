@@ -5,6 +5,7 @@ const countdownElement = document.getElementById('countdown');
 const timerElement = document.getElementById('timer');
 const csrfTokenInput = document.getElementById('csrf-token');
 const footer = document.getElementById('footer');
+const loadingElement = document.getElementById('loading');
 
 let recaptchaWidgetId = null;
 
@@ -41,7 +42,22 @@ function displayIpInfo() {
     });
 }
 
+function showLoading() {
+    loadingElement.style.display = 'block';
+    captchaWrapper.style.display = 'none';
+    getLinkButton.style.display = 'none';
+    countdownElement.style.display = 'none';
+    resultElement.style.display = 'none';
+}
+
+function hideLoading() {
+    loadingElement.style.display = 'none';
+    captchaWrapper.style.display = 'block';
+    resultElement.style.display = 'block';
+}
+
 function getCsrfToken() {
+    showLoading();
     const deviceInfo = getDeviceInfo();
     getPublicIp().then(clientIp => {
         fetch('/get-csrf-token', {
@@ -66,10 +82,12 @@ function getCsrfToken() {
                 resultElement.innerText = '';
                 resultElement.className = '';
             }
+            hideLoading();
         })
         .catch(() => {
             resultElement.innerText = 'Error loading page';
             resultElement.className = 'error';
+            hideLoading();
         });
     });
 }
@@ -138,6 +156,23 @@ function startCountdown(remaining) {
         }
     }, 1000);
 }
+
+// Xử lý ngắt kết nối
+function handleConnectionChange() {
+    if (!navigator.onLine) {
+        captchaWrapper.style.display = 'none';
+        getLinkButton.style.display = 'none';
+        resultElement.innerText = 'No internet connection. Please reconnect.';
+        resultElement.className = 'error';
+        if (recaptchaWidgetId) grecaptcha.reset(recaptchaWidgetId);
+        captchaWrapper.style.pointerEvents = 'none';
+    } else {
+        location.reload();
+    }
+}
+
+window.addEventListener('online', handleConnectionChange);
+window.addEventListener('offline', handleConnectionChange);
 
 document.addEventListener('DOMContentLoaded', () => {
     getCsrfToken();
