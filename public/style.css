@@ -2,7 +2,7 @@ body {
     font-family: 'Segoe UI', Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #e0eafc, #cfdef3);
+    background: linear-gradient(135deg, #e6f0fa, #d9e7f5);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -23,13 +23,14 @@ body {
 
 .container {
     text-align: center;
-    background: #ffffff;
+    background: linear-gradient(135deg, #ffffff, #f8f9fa);
     padding: 40px;
-    border-radius: 15px;
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
-    max-width: 450px;
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    max-width: 480px;
     width: 90%;
     animation: slideUp 1s ease-out;
+    border: 1px solid #e0e6f0;
 }
 
 @keyframes slideUp {
@@ -49,14 +50,19 @@ body {
 }
 
 h1 {
-    color: #2c3e50;
+    color: #1a2a44;
     margin-bottom: 25px;
-    font-size: 2.2em;
+    font-size: 2.3em;
     font-weight: 600;
+    text-transform: uppercase;
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 25px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
 
 .captcha-box {
@@ -70,14 +76,21 @@ h1 {
     overflow: hidden;
 }
 
+.loading {
+    display: none;
+    font-size: 1.2em;
+    color: #3498db;
+    margin-bottom: 20px;
+}
+
 .result-text {
     margin-top: 20px;
-    color: #2c3e50;
+    color: #1a2a44;
     font-size: 1.1em;
 }
 
 .result-text.success {
-    color: #27ae60;
+    color: #2ecc71;
 }
 
 .result-text.error {
@@ -92,7 +105,7 @@ h1 {
 
 .btn {
     padding: 10px 25px;
-    background-color: #3498db;
+    background: linear-gradient(135deg, #3498db, #2980b9);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -107,7 +120,7 @@ h1 {
 }
 
 .btn:hover {
-    background-color: #2980b9;
+    background: linear-gradient(135deg, #2980b9, #1f6ba6);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
 }
@@ -159,7 +172,7 @@ footer {
 
 .contant_box_404 h3 {
     font-size: 32px;
-    color: #2c3e50;
+    color: #1a2a44;
     margin-bottom: 15px;
     font-weight: 600;
 }
@@ -171,12 +184,12 @@ footer {
 }
 
 .link_404 {
-    background-color: #e74c3c;
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
     margin-top: 10px;
 }
 
 .link_404:hover {
-    background-color: #c0392b;
+    background: linear-gradient(135deg, #c0392b, #a93226);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
 }
