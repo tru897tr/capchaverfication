@@ -23,9 +23,10 @@ if (process.env.NODE_ENV !== 'production') {
     logger.add(new winston.transports.File({ filename: 'combined.log' }));
 }
 
-const requestTimes = new Map();
-const csrfTokens = new Map();
-const checkLimitTimes = new Map();
+// Tách lưu trữ IP và thiết bị
+const ipBlocks = new Map(); // Map<IP, { timestamp: number, blocked: boolean }>
+const deviceBlocks = new Map(); // Map<fingerprint, { timestamp: number, blocked: boolean }>
+const csrfTokens = new Map(); // Map<IP, CSRF token>
 
 app.use(express.json());
 app.use(express.static('public', { etag: false, lastModified: false }));
@@ -43,47 +44,55 @@ app.get('/', (req, res) => {
 app.use((req, res, next) => {
     req.clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.connection.remoteAddress;
     req.clientDevice = req.headers['user-agent'] || 'unknown';
-    req.clientFingerprint = req.body.deviceInfo ? req.body.deviceInfo.fingerprint : `${req.clientIp}-${req.clientDevice}-${req.headers['accept'] || ''}`.slice(0, 100);
+    req.clientFingerprint = req.body?.deviceInfo?.fingerprint || `${req.clientIp}-${req.clientDevice}-${req.headers['accept'] || ''}`.slice(0, 100);
     logger.info(`Request from IP: ${req.clientIp}, Device: ${req.clientDevice}, Fingerprint: ${req.clientFingerprint}, Path: ${req.path}`);
     next();
 });
 
 app.post('/get-csrf-token', (req, res) => {
     const ip = req.clientIp;
-    const { deviceInfo } = req.body;
-    const fingerprint = deviceInfo.fingerprint;
+    const { deviceInfo, clientIp } = req.body;
+    const fingerprint = deviceInfo?.fingerprint;
     const now = Date.now();
-    let deviceData = requestTimes.get(fingerprint) || { timestamp: now, count: 0, ipBlocked: new Map() };
 
-    for (let [existingFingerprint, data] of requestTimes.entries()) {
-        if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
-            const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
-            if (remainingTime > 0) {
-                logger.info(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
-                deviceData.ipBlocked.set(ip, true);
-                deviceData.timestamp = now;
-                requestTimes.set(fingerprint, deviceData);
-                return res.json({ status: 429, remainingTime });
-            }
-        }
-    }
+    let ipData = ipBlocks.get(ip) || { timestamp: now, blocked: false };
+    let deviceData = deviceBlocks.get(fingerprint) || { timestamp: now, blocked: false };
 
-    if (deviceData.ipBlocked.size > 0) {
-        const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
-        if (remainingTime > 0 && (deviceData.ipBlocked.get(ip) || [...deviceData.ipBlocked.values()].some(blocked => blocked))) {
-            logger.info(`Fingerprint ${fingerprint} or IP ${ip} blocked, remaining time: ${remainingTime}s`);
+    // Kiểm tra nếu IP bị chặn, chặn luôn thiết bị
+    if (ipData.blocked) {
+        const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
+        if (remainingTime > 0) {
+            logger.info(`IP ${ip} is blocked, blocking device ${fingerprint}, remaining time: ${remainingTime}s`);
+            deviceData.blocked = true;
+            deviceData.timestamp = now;
+            deviceBlocks.set(fingerprint, deviceData);
             return res.json({ status: 429, remainingTime });
         } else {
-            deviceData.ipBlocked.clear();
-            deviceData.count = 0;
+            ipData.blocked = false;
         }
     }
 
+    // Kiểm tra nếu thiết bị bị chặn, chặn luôn IP
+    if (deviceData.blocked) {
+        const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
+        if (remainingTime > 0) {
+            logger.info(`Device ${fingerprint} is blocked, blocking IP ${ip}, remaining time: ${remainingTime}s`);
+            ipData.blocked = true;
+            ipData.timestamp = now;
+            ipBlocks.set(ip, ipData);
+            return res.json({ status: 429, remainingTime });
+        } else {
+            deviceData.blocked = false;
+        }
+    }
+
+    // Nếu không bị chặn, cấp token và cho phép
     const token = crypto.randomBytes(16).toString('hex');
     csrfTokens.set(ip, token);
     setTimeout(() => csrfTokens.delete(ip), 60 * 1000);
-    requestTimes.set(fingerprint, deviceData);
-    logger.info(`Generated CSRF token for IP ${ip}`);
+    ipBlocks.set(ip, ipData);
+    deviceBlocks.set(fingerprint, deviceData);
+    logger.info(`Generated CSRF token for IP ${ip}, Device ${fingerprint}`);
     res.json({ csrfToken: token, status: 200 });
 });
 
@@ -100,23 +109,24 @@ const checkRateLimitLimiter = rateLimit({
 app.get('/check-rate-limit', checkRateLimitLimiter, (req, res) => {
     const ip = req.clientIp;
     const fingerprint = req.clientFingerprint;
-    let deviceData = requestTimes.get(fingerprint) || { timestamp: 0, count: 0, ipBlocked: new Map() };
     const now = Date.now();
-    
-    if (!deviceData || now - deviceData.timestamp >= 5 * 60 * 1000) {
-        deviceData = { timestamp: now, count: 0, ipBlocked: new Map() };
-        requestTimes.set(fingerprint, deviceData);
+
+    let ipData = ipBlocks.get(ip) || { timestamp: 0, blocked: false };
+    let deviceData = deviceBlocks.get(fingerprint) || { timestamp: 0, blocked: false };
+
+    const ipRemaining = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
+    const deviceRemaining = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
+
+    if (ipData.blocked && ipRemaining > 0) {
+        logger.info(`IP ${ip} is blocked, remaining time: ${ipRemaining}s`);
+        return res.json({ status: 429, remainingTime: ipRemaining });
+    }
+    if (deviceData.blocked && deviceRemaining > 0) {
+        logger.info(`Device ${fingerprint} is blocked, remaining time: ${deviceRemaining}s`);
+        return res.json({ status: 429, remainingTime: deviceRemaining });
     }
 
-    const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
-    const ipBlocked = deviceData.ipBlocked.get(ip) || false;
-
-    logger.info(`Checking rate limit for IP ${ip}, Fingerprint: ${fingerprint}, count: ${deviceData.count}, remainingTime: ${remainingTime}s, IP Blocked: ${ipBlocked}`);
-    if (remainingTime > 0 && (deviceData.count > 0 || ipBlocked)) {
-        res.json({ status: 429, remainingTime });
-    } else {
-        res.json({ status: 200 });
-    }
+    res.json({ status: 200 });
 });
 
 const verifyLimiter = rateLimit({
@@ -124,11 +134,16 @@ const verifyLimiter = rateLimit({
     max: 1,
     keyGenerator: (req) => req.clientIp,
     handler: (req, res) => {
-        const fingerprint = req.clientFingerprint;
         const ip = req.clientIp;
-        const deviceData = requestTimes.get(fingerprint) || { timestamp: 0, count: 0, ipBlocked: new Map() };
-        const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - Date.now()) / 1000);
-        logger.info(`Rate limit hit for IP ${ip}, Fingerprint: ${fingerprint}, remaining time: ${remainingTime}s, IP Blocked: ${deviceData.ipBlocked.get(ip)}`);
+        const fingerprint = req.clientFingerprint;
+        const now = Date.now();
+        let ipData = ipBlocks.get(ip) || { timestamp: now, blocked: false };
+        let deviceData = deviceBlocks.get(fingerprint) || { timestamp: now, blocked: false };
+        const remainingTime = Math.max(
+            Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000),
+            Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000)
+        );
+        logger.info(`Rate limit hit for IP ${ip}, Fingerprint: ${fingerprint}, remaining time: ${remainingTime}s`);
         res.status(429).json({
             success: false,
             message: 'Too many attempts. Please try again later.',
@@ -140,56 +155,67 @@ const verifyLimiter = rateLimit({
         const ip = req.clientIp;
         const fingerprint = req.clientFingerprint;
         const now = Date.now();
-        let deviceData = requestTimes.get(fingerprint);
+        let ipData = ipBlocks.get(ip) || { timestamp: now, blocked: false };
+        let deviceData = deviceBlocks.get(fingerprint) || { timestamp: now, blocked: false };
 
-        if (!deviceData || now - deviceData.timestamp >= 5 * 60 * 1000) {
-            deviceData = { timestamp: now, count: 0, ipBlocked: new Map() };
-            requestTimes.set(fingerprint, deviceData);
+        // Reset nếu IP hoặc thiết bị mới
+        if (!ipData.timestamp || !deviceData.timestamp) {
+            ipData = { timestamp: now, blocked: false };
+            deviceData = { timestamp: now, blocked: false };
         }
 
-        for (let [existingFingerprint, data] of requestTimes.entries()) {
-            if (data.ipBlocked.get(ip) && existingFingerprint !== fingerprint) {
-                const remainingTime = Math.ceil((data.timestamp + 5 * 60 * 1000 - now) / 1000);
-                if (remainingTime > 0) {
-                    logger.info(`IP ${ip} blocked from Fingerprint ${existingFingerprint}, blocking new Fingerprint ${fingerprint}`);
-                    deviceData.ipBlocked.set(ip, true);
-                    deviceData.timestamp = now;
-                    requestTimes.set(fingerprint, deviceData);
-                    return false;
-                }
-            }
-        }
-
-        if (deviceData.ipBlocked.size > 0) {
-            const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
-            if (remainingTime > 0 && [...deviceData.ipBlocked.values()].some(blocked => blocked)) {
-                logger.info(`Fingerprint ${fingerprint} blocked, checking IP ${ip}`);
-                deviceData.ipBlocked.set(ip, true);
-                requestTimes.set(fingerprint, deviceData);
+        // Kiểm tra IP bị chặn, chặn thiết bị
+        if (ipData.blocked) {
+            const remainingTime = Math.ceil((ipData.timestamp + 5 * 60 * 1000 - now) / 1000);
+            if (remainingTime > 0) {
+                logger.info(`IP ${ip} is blocked, blocking device ${fingerprint}, remaining time: ${remainingTime}s`);
+                deviceData.blocked = true;
+                deviceData.timestamp = now;
+                deviceBlocks.set(fingerprint, deviceData);
                 return false;
+            } else {
+                ipData.blocked = false;
             }
         }
 
-        deviceData.count += 1;
-        deviceData.timestamp = now;
-        if (deviceData.count > 1) {
-            deviceData.ipBlocked.set(ip, true);
-            logger.info(`Blocking IP ${ip} and Fingerprint ${fingerprint} after verification`);
+        // Kiểm tra thiết bị bị chặn, chặn IP
+        if (deviceData.blocked) {
+            const remainingTime = Math.ceil((deviceData.timestamp + 5 * 60 * 1000 - now) / 1000);
+            if (remainingTime > 0) {
+                logger.info(`Device ${fingerprint} is blocked, blocking IP ${ip}, remaining time: ${remainingTime}s`);
+                ipData.blocked = true;
+                ipData.timestamp = now;
+                ipBlocks.set(ip, ipData);
+                return false;
+            } else {
+                deviceData.blocked = false;
+            }
         }
-        requestTimes.set(fingerprint, deviceData);
 
-        const allow = deviceData.count <= 1 && !deviceData.ipBlocked.get(ip);
+        // Cập nhật trạng thái
+        ipData.timestamp = now;
+        deviceData.timestamp = now;
+        ipBlocks.set(ip, ipData);
+        deviceBlocks.set(fingerprint, deviceData);
+
+        const allow = !ipData.blocked && !deviceData.blocked;
+        if (!allow) {
+            ipData.blocked = true;
+            deviceData.blocked = true;
+            ipBlocks.set(ip, ipData);
+            deviceBlocks.set(fingerprint, deviceData);
+        }
         return allow;
     }
 });
 
 app.post('/verify', verifyLimiter, (req, res) => {
-    const { 'g-recaptcha-response': recaptchaResponse, 'csrf-token': csrfToken, deviceInfo } = req.body;
+    const { 'g-recaptcha-response': recaptchaResponse, 'csrf-token': csrfToken, deviceInfo, clientIp } = req.body;
     const ip = req.clientIp;
     const expectedToken = csrfTokens.get(ip);
-    const fingerprint = deviceInfo.fingerprint;
+    const fingerprint = deviceInfo?.fingerprint;
 
-    logger.info(`Verifying for IP ${ip}, Fingerprint: ${fingerprint}`);
+    logger.info(`Verifying for IP ${ip}, Fingerprint: ${fingerprint}, Client IP: ${clientIp}`);
 
     if (!recaptchaResponse || !csrfToken || !expectedToken || csrfToken !== expectedToken) {
         logger.info('Invalid CSRF token or missing CAPTCHA response');
@@ -207,11 +233,15 @@ app.post('/verify', verifyLimiter, (req, res) => {
         ).then(response => {
             if (response.data.success) {
                 logger.info(`CAPTCHA verified for IP ${ip}`);
-                const redirectUrl = 'https://www.example.com/success';
-                let deviceData = requestTimes.get(fingerprint) || { timestamp: Date.now(), count: 1, ipBlocked: new Map() };
-                deviceData.ipBlocked.set(ip, true);
+                let ipData = ipBlocks.get(ip) || { timestamp: Date.now(), blocked: false };
+                let deviceData = deviceBlocks.get(fingerprint) || { timestamp: Date.now(), blocked: false };
+                ipData.blocked = true;
+                deviceData.blocked = true;
+                ipData.timestamp = Date.now();
                 deviceData.timestamp = Date.now();
-                requestTimes.set(fingerprint, deviceData);
+                ipBlocks.set(ip, ipData);
+                deviceBlocks.set(fingerprint, deviceData);
+                const redirectUrl = 'https://www.example.com/success';
                 res.json({
                     success: true,
                     message: 'CAPTCHA verified successfully!',
